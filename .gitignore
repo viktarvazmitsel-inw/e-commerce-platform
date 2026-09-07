@@ -1,2 +1,6 @@
 .env
 .idea
+.gemini/
+.claude/
+.grok/
+.cursorrules.local
