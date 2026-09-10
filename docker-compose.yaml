@@ -1,0 +1,14 @@
+services:
+  frontend:
+    container_name: shop-frontend
+    build:
+      context: ./infrastructure/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    user: "1000:1000"
+    working_dir: /app
+    volumes:
+      - ./frontend/app:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev"
