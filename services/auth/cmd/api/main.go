@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -12,8 +12,11 @@ type App struct {
 	ch *amqp.Channel
 }
 
+type StdResponse struct {
+	Status string
+}
+
 func main() {
-	// 1. Establish RabbitMQ connection ONCE at startup
 	conn, err := amqp.Dial("amqp://guest:guest@broker:5672/")
 	if err != nil {
 		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
@@ -28,13 +31,13 @@ func main() {
 
 	q, err := ch.QueueDeclare(
 		"test", // queue name
-		true,        // durable
-		false,        // delete when unused
-		false,        // exclusive
-		false,        // no-wait
+		true,   // durable
+		false,  // delete when unused
+		false,  // exclusive
+		false,  // no-wait
 		amqp.Table{
-            amqp.QueueTypeArg: amqp.QueueTypeQuorum,
-        },
+			amqp.QueueTypeArg: amqp.QueueTypeQuorum,
+		},
 	)
 	if err != nil {
 		log.Fatalf("Failed to declare queue: %v", err)
@@ -42,18 +45,31 @@ func main() {
 
 	app := &App{ch: ch}
 
-	http.HandleFunc("/", app.handleMain(q.Name))
+	http.HandleFunc("/api/auth", app.handleMain(q.Name))
+	http.HandleFunc("/api/auth/ping", handlePing)
 
 	log.Println("Sender running on :8080...")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	http.ListenAndServe(":8080", nil)
+}
+
+func handlePing(w http.ResponseWriter, r *http.Request) {
+	message := &StdResponse{Status: "Auth"}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(message); err != nil {
+		log.Printf("Encoding error: %v", err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (app *App) handleMain(queueName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-	    if r.URL.Path != "/" {
-            http.NotFound(w, r)
-            return
-	    }
+		if r.URL.Path != "/api/auth" {
+			http.NotFound(w, r)
+			return
+		}
 
 		body := "Hello from Go Sender!"
 
@@ -74,6 +90,16 @@ func (app *App) handleMain(queueName string) http.HandlerFunc {
 			return
 		}
 
-		fmt.Fprintln(w, "Message successfully sent to RabbitMQ!")
+		message := &StdResponse{Status: "sent"}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(message); err != nil {
+			log.Printf("Encoding error: %v", err)
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
+
+		log.Println("Message successfully sent to RabbitMQ!")
 	}
 }

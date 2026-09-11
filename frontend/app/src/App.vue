@@ -1,6 +1,26 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
+
+async function testConnect() {
+  const url = '/api/auth'
+  try {
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error('failed to make a request')
+    }
+
+    const result = await response.json()
+    console.log(result)
+  } catch (error) {
+    console.log(error.message)
+  }
+}
+
+testConnect()
+
+
 </script>
 
 <template>

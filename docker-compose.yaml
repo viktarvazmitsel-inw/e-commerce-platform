@@ -12,7 +12,11 @@ services:
     volumes:
       - ./frontend/app:/app
       - /app/node_modules
+    networks:
+      - auth
+      - note
     command: sh -c "npm install && npm run dev"
+
 
   broker:
     image: rabbitmq:4.3.5-alpine
@@ -20,6 +24,9 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    networks:
+      - auth
+      - note
 
   auth-back:
     container_name: shop-auth-back
@@ -29,7 +36,11 @@ services:
     volumes:
       - ./services/auth:/app
     ports:
-      - "8080:8080"
+      - "8080"
+    networks:
+      - auth
+    depends_on:
+      - broker
 
   auth-db:
     container_name: shop-auth-db
@@ -40,8 +51,48 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-default}
       POSTGRES_DB: shop_auth_db
+    networks:
+      - auth
 
+  note-back:
+    container_name: shop-note-back
+    build:
+      context: ./services/notification
+      dockerfile: ../../infrastructure/notification/Dockerfile
+    volumes:
+      - ./services/notification:/app
+    ports:
+      - "8080"
+    environment:
+      - PORT=8080
+      - DB_HOST=notification-db
+      - DB_PORT=27017
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-default}
+      - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-shop_note_db}
+    networks:
+      - note
+    depends_on:
+      - broker
 
+  note-db:
+    container_name: shop-note-db
+    image: mongo:7.0
+    volumes:
+      - note-db-data:/data/db
+    ports:
+      - "27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-default}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-shop_note_db}
+    networks:
+      - note
 
 volumes:
   auth-db-data:
+  note-db-data:
+
+networks:
+  auth:
+  note:
