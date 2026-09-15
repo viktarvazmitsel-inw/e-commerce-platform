@@ -163,11 +163,78 @@ services:
     networks:
       - catalog
 
+  order-back:
+    container_name: shop-order-back
+    build:
+      context: ./infrastructure/order/php
+      dockerfile: Dockerfile
+      args:
+        - ${WWWUSER:-1000}
+        - ${WWWGROUP:-1000}
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    volumes:
+      - ./services/order:/var/www/html
+    networks:
+      - order
+      - frontend
+      - broker
+
+  order-server:
+    container_name: shop-order-server
+    build:
+      context: ./infrastructure/order/nginx
+      dockerfile: Dockerfile
+    ports:
+      - "8080"
+    volumes:
+      - ./services/order:/var/www/html
+    depends_on:
+      - order-back
+    networks:
+      - order
+      - frontend
+      - broker
+
+  order-db:
+    container_name: shop-order-db
+    image: postgres:18.6-alpine
+    volumes:
+      - order-db-data:/var/lib/postgresql/18/data
+    environment:
+      POSTGRES_USER: ${ORDER_PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${ORDER_PG_PASSWORD:-default}
+      POSTGRES_DB: shop_order_db
+    networks:
+      - order
+
+  order-cache:
+    container_name: shop-order-cache
+    image: redis:8.10
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${ORDER_REDIS_PASSWORD}
+    networks:
+      - order
+
+  order-payment:
+    container_name: shop-order-payment
+    image: stripe/stripe-cli:latest
+    environment:
+      - STRIPE_API_KEY=${STRIPE_API_KEY}
+    command: 'listen --forward-to http://order-server:8080/api/order/stripe/webhook --skip-update'
+    depends_on:
+      - order-server
+    networks:
+      - order
+
 volumes:
   auth-db-data:
   note-db-data:
   catalog-db-data:
   catalog-storage-data:
+  order-db-data:
 
 networks:
   frontend:
@@ -175,3 +242,4 @@ networks:
   auth:
   note:
   catalog:
+  order:

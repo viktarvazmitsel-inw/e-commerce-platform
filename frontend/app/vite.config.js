@@ -31,6 +31,11 @@ export default defineConfig({
         target: 'http://catalog-server:8080',
         changeOrigin: true,
       },
+      '/api/order': {
+        target: 'http://order-server:8080',
+        changeOrigin: true,
+      },
+      
     }
   }
 })

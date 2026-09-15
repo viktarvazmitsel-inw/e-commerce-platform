@@ -3,7 +3,7 @@ import { RouterLink, RouterView } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
 
 async function testConnect() {
-  const url = '/api/catalog/test-minio'
+  const url = '/api/order/health'
   try {
     const response = await fetch(url)
 
