@@ -13,8 +13,7 @@ services:
       - ./frontend/app:/app
       - /app/node_modules
     networks:
-      - auth
-      - note
+      - frontend
     command: sh -c "npm install && npm run dev"
 
 
@@ -25,8 +24,7 @@ services:
       - "5672:5672"
       - "15672:15672"
     networks:
-      - auth
-      - note
+      - broker
 
   auth-back:
     container_name: shop-auth-back
@@ -39,6 +37,8 @@ services:
       - "8080"
     networks:
       - auth
+      - frontend
+      - broker
     depends_on:
       - broker
 
@@ -48,8 +48,8 @@ services:
     volumes:
       - auth-db-data:/var/lib/postgresql/18/data
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-default}
+      POSTGRES_USER: ${AUTH_PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${AUTH_PG_PASSWORD:-default}
       POSTGRES_DB: shop_auth_db
     networks:
       - auth
@@ -72,6 +72,8 @@ services:
       - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-shop_note_db}
     networks:
       - note
+      - frontend
+      - broker
     depends_on:
       - broker
 
@@ -89,10 +91,87 @@ services:
     networks:
       - note
 
+  catalog-back:
+    container_name: shop-catalog-back
+    build:
+      context: ./infrastructure/catalog/php
+      dockerfile: Dockerfile
+      args:
+        - ${WWWUSER:-1000}
+        - ${WWWGROUP:-1000}
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    volumes:
+      - ./services/catalog:/var/www/html
+    networks:
+      - catalog
+      - frontend
+      - broker
+
+  catalog-server:
+    container_name: shop-catalog-server
+    build:
+      context: ./infrastructure/catalog/nginx
+      dockerfile: Dockerfile
+    ports:
+      - "8080"
+    volumes:
+      - ./services/catalog:/var/www/html
+    depends_on:
+      - catalog-back
+    networks:
+      - catalog
+      - frontend
+      - broker
+
+  catalog-db:
+    container_name: shop-catalog-db
+    image: postgres:18.6-alpine
+    volumes:
+      - catalog-db-data:/var/lib/postgresql/18/data
+    environment:
+      POSTGRES_USER: ${CATALOG_PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${CATALOG_PG_PASSWORD:-default}
+      POSTGRES_DB: shop_catalog_db
+    networks:
+      - catalog
+
+  catalog-cache:
+    container_name: shop-catalog-cache
+    image: redis:8.10
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${CATALOG_REDIS_PASSWORD}
+    networks:
+      - catalog    
+
+  catalog-storage:
+    container_name: shop-catalog-storage
+    build:
+      context: ./infrastructure/catalog/minio
+      dockerfile: Dockerfile
+    volumes:
+      - catalog-storage-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${CATALOG_MINIO_USER:-default}
+      MINIO_ROOT_PASSWORD: ${CATALOG_MINIO_PASSWORD:-default}
+      MINIO_CONSOLE_ADDRESS: ":9001"
+    networks:
+      - catalog
+
 volumes:
   auth-db-data:
   note-db-data:
+  catalog-db-data:
+  catalog-storage-data:
 
 networks:
+  frontend:
+  broker:
   auth:
   note:
+  catalog:

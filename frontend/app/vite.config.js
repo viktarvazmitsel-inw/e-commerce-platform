@@ -27,6 +27,10 @@ export default defineConfig({
         target: 'http://note-back:8080',
         changeOrigin: true,
       },
+      '/api/catalog': {
+        target: 'http://catalog-server:8080',
+        changeOrigin: true,
+      },
     }
   }
 })
