@@ -229,12 +229,50 @@ services:
     networks:
       - order
 
+  search-back:
+    container_name: shop-search-back
+    build:
+      context: ./services/search
+      dockerfile: ../../infrastructure/search/Dockerfile
+      args:
+        - WWWUSER=${WWWUSER:-1000}
+        - WWWGROUP=${WWWGROUP:-1000}
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    volumes:
+      - ./services/search:/app
+    ports:
+      - "8080"
+    environment:
+      - SEARCH_PORT=${SEARCH_PORT:-8080}
+      - SEARCH_ES_HOST=${SEARCH_ES_HOST:-http://search-engine:9200}
+      - SEARCH_BROKER_URL=${SEARCH_BROKER_URL:-amqp://guest:guest@broker:5672/}
+    networks:
+      - search
+      - frontend
+      - broker
+    depends_on:
+      - search-engine
+      - broker
+
+  search-engine:
+    container_name: shop-search-engine
+    image: elasticsearch:8.17.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+    volumes:
+      - search-engine-data:/usr/share/elasticsearch/data
+    networks:
+      - search
+
 volumes:
   auth-db-data:
   note-db-data:
   catalog-db-data:
   catalog-storage-data:
   order-db-data:
+  search-engine-data:
 
 networks:
   frontend:
@@ -243,3 +281,5 @@ networks:
   note:
   catalog:
   order:
+  search:
+

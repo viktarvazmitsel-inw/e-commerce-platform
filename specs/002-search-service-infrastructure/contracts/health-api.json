@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SearchServiceHealthResponse",
+  "type": "object",
+  "required": [
+    "status",
+    "service",
+    "search_engine",
+    "broker"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "degraded", "down"]
+    },
+    "service": {
+      "type": "string",
+      "const": "search-service"
+    },
+    "search_engine": {
+      "type": "string",
+      "enum": ["connected", "disconnected"]
+    },
+    "broker": {
+      "type": "string",
+      "enum": ["connected", "disconnected"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
