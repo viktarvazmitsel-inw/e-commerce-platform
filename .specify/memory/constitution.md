@@ -37,7 +37,7 @@ Every service, gateway, and message broker publisher/consumer MUST emit structur
 Authentication tokens MUST be validated at the API Gateway and service boundaries. Secrets MUST never be committed in plaintext, and services MUST operate under least-privilege networking.
 
 ## Architecture & Infrastructure Standards
-- **Containers & Orchestration**: Every component (frontend, gateway, broker, microservices) MUST provide a reproducible `Dockerfile` and `docker-compose.yaml` for local development and orchestration. Each service MUST be able to run frontend in separate container.
+- **Containers & Orchestration**: All modules (frontend, gateway, broker, services) MUST run by single `docker-compose.yaml`. Each service (analytics, auth, catalog, notification, order, search) MUST be able to run separately with frontend module.
 - **Gateway & Ingress**: The API Gateway acts as the single entry point for all external client traffic, handling SSL termination, request routing, rate limiting, but not for authentication.
 - **Message Broker**: Serves as the backbone for all asynchronous inter-service coordination, publish/subscribe events, and command distribution.
 - **Data Persistence**: Each service encapsulates its dedicated data store with zero shared persistence layers.

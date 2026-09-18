@@ -4,3 +4,5 @@
 .claude/
 .grok/
 .cursorrules.local
+/vendor
+/node_modules

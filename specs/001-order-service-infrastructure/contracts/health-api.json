@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OrderServiceHealthResponse",
+  "type": "object",
+  "required": [
+    "status",
+    "service",
+    "database",
+    "cache"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "degraded", "down"]
+    },
+    "service": {
+      "type": "string",
+      "const": "order-service"
+    },
+    "database": {
+      "type": "string",
+      "enum": ["connected", "disconnected"]
+    },
+    "cache": {
+      "type": "string",
+      "enum": ["connected", "disconnected"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
