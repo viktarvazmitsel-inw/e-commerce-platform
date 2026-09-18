@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+type TokenGenerator interface {
+	GenerateTokens(id string) (domain.TokenPair, error)
+}
+
 type UserRepository interface {
 	IsEmailTaken(email string) bool
 	Save(user *domain.User) error
@@ -17,4 +21,6 @@ type TokenRepository interface {
 	LoadVerificationToken(token string) (string, error)
 	DeleteVerificationToken(token string) error
 	SaveTokenPair(userId string, pair domain.TokenPair) error
+	GetUserIDByRefreshToken(token string) (string, error)
+	UnsetAndSaveTokenPair(token, userId string, pair domain.TokenPair) error
 }
