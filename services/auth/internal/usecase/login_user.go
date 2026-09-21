@@ -32,7 +32,7 @@ func NewLoginUserUseCase(r UserRepository, s TokenRepository, g TokenGenerator) 
 }
 
 func (uc *LoginUserUseCase) Execute(input LoginInput) (domain.TokenPair, error) {
-	user, err := uc.repo.GetUser(input.Email)
+	user, err := uc.repo.GetUserByEmail(input.Email)
 	if err != nil {
 		return domain.TokenPair{}, ErrInvalidCredentials
 	}
