@@ -6,8 +6,6 @@ import (
 	"fmt"
 )
 
-var ErrUserIdNotFound = errors.New("user with such id not found")
-
 type UserProfile struct {
 	ID      string `json:"id"`
 	Email   string `json:"email"`
@@ -21,12 +19,12 @@ type GetUserInput struct {
 	ID string
 }
 
-type GetUserUseCase struct {
+type GetUserProfileUseCase struct {
 	repo UserRepository
 }
 
-func NewGetUserUseCase(r UserRepository) *GetUserUseCase {
-	return &GetUserUseCase{
+func NewGetUserUseCase(r UserRepository) *GetUserProfileUseCase {
+	return &GetUserProfileUseCase{
 		repo: r,
 	}
 }
@@ -45,7 +43,7 @@ func toProfile(u *domain.User) *UserProfile {
 	}
 }
 
-func (uc *GetUserUseCase) Execute(input GetUserInput) (*UserProfile, error) {
+func (uc *GetUserProfileUseCase) Execute(input GetUserInput) (*UserProfile, error) {
 	if input.ID == "" {
 		return nil, ErrUserIdNotFound
 	}

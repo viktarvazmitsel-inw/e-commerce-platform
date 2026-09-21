@@ -17,11 +17,11 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]
 var phoneRegex = regexp.MustCompile(`^\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}$`)
 
 var (
-	ErrInvalidEmail  = errors.New("Invalid email format")
-	ErrEmptyPassword = errors.New("Password cannot be empty")
-	ErrEmptyName     = errors.New("Name cannot be empty")
-	ErrEmptySurname  = errors.New("Surname cannot be empty")
-	ErrInvalidPhone  = errors.New("Invalid phone format")
+	ErrInvalidEmail  = errors.New("invalid email format")
+	ErrEmptyPassword = errors.New("password cannot be empty")
+	ErrEmptyName     = errors.New("name cannot be empty")
+	ErrEmptySurname  = errors.New("surname cannot be empty")
+	ErrInvalidPhone  = errors.New("invalid phone format")
 )
 
 type User struct {
@@ -95,4 +95,24 @@ func NewUser(email, passwordHash, name, surname, phone string) (*User, error) {
 		IsVerified:   false,
 	}, nil
 
+}
+
+func (u *User) UpdateUser(name, surname, phone string) error {
+	trimmedName := strings.TrimSpace(name)
+	if !IsNameCorrect(trimmedName) {
+		return ErrEmptyName
+	}
+
+	trimmedSurname := strings.TrimSpace(surname)
+
+	trimmedPhone := strings.TrimSpace(phone)
+	if !IsPhoneValid(trimmedPhone) {
+		return ErrInvalidPhone
+	}
+
+	u.Name = trimmedName
+	u.Surname = trimmedSurname
+	u.Phone = phone
+
+	return nil
 }
