@@ -18,10 +18,11 @@ type UserRepository interface {
 }
 
 type TokenRepository interface {
-	SaveVerificationToken(userId string, token string, ttl time.Duration) error
+	SaveVerificationToken(userId, token string, ttl time.Duration) error
 	LoadVerificationToken(token string) (string, error)
 	DeleteVerificationToken(token string) error
 	SaveTokenPair(userId string, pair domain.TokenPair) error
 	GetUserIDByRefreshToken(token string) (string, error)
 	UnsetAndSaveTokenPair(token, userId string, pair domain.TokenPair) error
+	SaveEmailUpdateToken(userId, newEmail, token string, ttl time.Duration) error
 }

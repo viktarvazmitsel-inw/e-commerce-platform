@@ -10,12 +10,8 @@ import (
 )
 
 var (
-	ErrPasswordIsNotStrongEnough   = errors.New("password must contain upper and lowercase letters, numbers and symbols")
-	ErrPasswordHashFailed          = errors.New("password hash failed.")
-	ErrEmailAlreadyTaken           = errors.New("email already taken")
-	ErrTokenGenerationFailed       = errors.New("registration failed due to token generation fail.")
-	ErrVerificationTokenSaveFailed = errors.New("failed to save verification token.")
-	ErrVerificationEmailSendFailed = errors.New("failed to send verification email.")
+	ErrPasswordIsNotStrongEnough = errors.New("password must contain upper and lowercase letters, numbers and symbols")
+	ErrPasswordHashFailed        = errors.New("password hash failed")
 )
 
 type EmailSender interface {
