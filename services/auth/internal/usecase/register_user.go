@@ -3,15 +3,8 @@ package usecase
 import (
 	"authorization/internal/domain"
 	"authorization/internal/domain/security"
-	"errors"
 	"fmt"
 	"time"
-	"unicode"
-)
-
-var (
-	ErrPasswordIsNotStrongEnough = errors.New("password must contain upper and lowercase letters, numbers and symbols")
-	ErrPasswordHashFailed        = errors.New("password hash failed")
 )
 
 type EmailSender interface {
@@ -32,26 +25,6 @@ type RegisterUserUseCase struct {
 	tokenStorage TokenRepository
 }
 
-func IsPasswordStrong(p string) bool {
-	if len(p) < 8 {
-		return false
-	}
-	var hasUpper, hasLower, hasDigit, hasSpecial bool
-	for _, r := range p {
-		switch {
-		case unicode.IsUpper(r):
-			hasUpper = true
-		case unicode.IsLower(r):
-			hasLower = true
-		case unicode.IsDigit(r):
-			hasDigit = true
-		case unicode.IsPunct(r) || unicode.IsSymbol(r):
-			hasSpecial = true
-		}
-	}
-	return hasUpper && hasLower && hasDigit && hasSpecial
-}
-
 func NewRegisterUserUseCase(r UserRepository, m EmailSender, s TokenRepository) *RegisterUserUseCase {
 	return &RegisterUserUseCase{
 		repo:         r,
@@ -61,7 +34,7 @@ func NewRegisterUserUseCase(r UserRepository, m EmailSender, s TokenRepository) 
 }
 
 func (uc *RegisterUserUseCase) Execute(input RegisterInput) error {
-	if !IsPasswordStrong(input.Password) {
+	if !security.IsPasswordStrong(input.Password) {
 		return ErrPasswordIsNotStrongEnough
 	}
 

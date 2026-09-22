@@ -133,3 +133,15 @@ func (u *User) UpdateUserEmail(newEmail string) error {
 
 	return nil
 }
+
+func (u *User) UpdateUserPassword(newPasswordHash string) error {
+	trimmedPasswordHash := strings.TrimSpace(newPasswordHash)
+
+	if trimmedPasswordHash == "" {
+		return ErrEmptyPassword
+	}
+
+	u.PasswordHash = trimmedPasswordHash
+
+	return nil
+}
