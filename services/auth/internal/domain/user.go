@@ -18,6 +18,7 @@ var phoneRegex = regexp.MustCompile(`^\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{
 
 var (
 	ErrInvalidEmail  = errors.New("invalid email format")
+	ErrEmptyEmail    = errors.New("email can not be empty")
 	ErrEmptyPassword = errors.New("password cannot be empty")
 	ErrEmptyName     = errors.New("name cannot be empty")
 	ErrEmptySurname  = errors.New("surname cannot be empty")
@@ -113,6 +114,22 @@ func (u *User) UpdateUser(name, surname, phone string) error {
 	u.Name = trimmedName
 	u.Surname = trimmedSurname
 	u.Phone = phone
+
+	return nil
+}
+
+func (u *User) UpdateUserEmail(newEmail string) error {
+	trimmedEmail := strings.TrimSpace(newEmail)
+
+	if trimmedEmail == "" {
+		return ErrInvalidEmail
+	}
+
+	if !IsEmailValid(trimmedEmail) {
+		return ErrInvalidEmail
+	}
+
+	u.Email = trimmedEmail
 
 	return nil
 }
