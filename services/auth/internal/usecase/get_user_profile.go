@@ -7,12 +7,12 @@ import (
 )
 
 type UserProfile struct {
-	ID      string `json:"id"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	Surname string `json:"surname"`
-	Phone   string `json:"phone"`
-	Role    int    `json:"role"`
+	ID      string      `json:"id"`
+	Email   string      `json:"email"`
+	Name    string      `json:"name"`
+	Surname string      `json:"surname"`
+	Phone   string      `json:"phone"`
+	Role    domain.Role `json:"role"`
 }
 
 type GetUserInput struct {

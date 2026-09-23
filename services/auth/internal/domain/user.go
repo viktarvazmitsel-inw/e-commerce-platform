@@ -7,22 +7,19 @@ import (
 	"strings"
 )
 
-const (
-	RoleClient    = 1
-	RoleAnalycist = 2
-	RoleAdmin     = 3
-)
-
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 var phoneRegex = regexp.MustCompile(`^\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}$`)
 
 var (
-	ErrInvalidEmail  = errors.New("invalid email format")
-	ErrEmptyEmail    = errors.New("email can not be empty")
-	ErrEmptyPassword = errors.New("password cannot be empty")
-	ErrEmptyName     = errors.New("name cannot be empty")
-	ErrEmptySurname  = errors.New("surname cannot be empty")
-	ErrInvalidPhone  = errors.New("invalid phone format")
+	ErrInvalidEmail     = errors.New("invalid email format")
+	ErrEmptyEmail       = errors.New("email can not be empty")
+	ErrEmptyPassword    = errors.New("password cannot be empty")
+	ErrEmptyName        = errors.New("name cannot be empty")
+	ErrEmptySurname     = errors.New("surname cannot be empty")
+	ErrInvalidPhone     = errors.New("invalid phone format")
+	ErrPermissionDenied = errors.New("permission denied")
+	ErrUnableToSetAdmin = errors.New("unable to set admin role")
+	ErrUnchangedRole    = errors.New("role didn't change")
 )
 
 type User struct {
@@ -32,20 +29,8 @@ type User struct {
 	Name         string `json:"name" db:"name"`
 	Surname      string `json:"surname" db:"surname"`
 	Phone        string `json:"phone" db:"phone"`
-	Role         int    `json:"role" db:"role"`
+	Role         Role   `json:"role" db:"role"`
 	IsVerified   bool   `json:"isVerified" db:"is_verified"`
-}
-
-func (u *User) IsClient() bool {
-	return u.Role == RoleClient
-}
-
-func (u *User) IsAnalycist() bool {
-	return u.Role == RoleAnalycist
-}
-
-func (u *User) IsAdmin() bool {
-	return u.Role == RoleAdmin
 }
 
 func IsEmailValid(e string) bool {
@@ -142,6 +127,31 @@ func (u *User) UpdateUserPassword(newPasswordHash string) error {
 	}
 
 	u.PasswordHash = trimmedPasswordHash
+
+	return nil
+}
+
+func (u *User) Can(permission Permission) bool {
+	return u.Role.HasPermission(permission)
+}
+
+func (u *User) RequirePermission(permission Permission) error {
+	if !u.Can(permission) {
+		return ErrPermissionDenied
+	}
+	return nil
+}
+
+func (u *User) SetRole(role Role) error {
+	if role == RoleAdmin {
+		return ErrUnableToSetAdmin
+	}
+
+	if role == u.Role {
+		return ErrUnchangedRole
+	}
+
+	u.Role = role
 
 	return nil
 }
