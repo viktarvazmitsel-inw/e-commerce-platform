@@ -37,6 +37,10 @@ func (uc *UpdateUserProfileUseCase) Execute(input UpdateUserProfileInput) error 
 		return fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
+	if err := userEntity.EnsureActive(); err != nil {
+		return err
+	}
+
 	if !userEntity.IsVerified {
 		return ErrUserEmailIsNotVerified
 	}

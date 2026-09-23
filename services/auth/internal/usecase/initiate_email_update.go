@@ -44,6 +44,10 @@ func (uc *InitiateEmailUpdateUseCase) Execute(input EmailUpdateInput) error {
 		return fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
+	if err := userEntity.EnsureActive(); err != nil {
+		return err
+	}
+
 	if isPasswordValid, err := security.IsPasswordValid(input.Password, userEntity.PasswordHash); err != nil || !isPasswordValid {
 		return ErrInvalidPassword
 	}

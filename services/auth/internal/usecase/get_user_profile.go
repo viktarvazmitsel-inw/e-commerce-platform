@@ -57,6 +57,10 @@ func (uc *GetUserProfileUseCase) Execute(input GetUserInput) (*UserProfile, erro
 		return nil, fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
+	if err := userData.EnsureActive(); err != nil {
+		return nil, err
+	}
+
 	userProfile := toProfile(userData)
 	if userProfile == nil {
 		return nil, ErrUserIdNotFound

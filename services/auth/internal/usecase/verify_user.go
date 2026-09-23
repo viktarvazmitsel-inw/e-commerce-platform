@@ -15,19 +15,19 @@ type VerificationInput struct {
 	Token string
 }
 
-type ActivateUserUseCase struct {
+type VerifyUserUseCase struct {
 	repo         UserRepository
 	tokenStorage TokenRepository
 }
 
-func NewActivateUserUseCase(r UserRepository, s TokenRepository) *ActivateUserUseCase {
-	return &ActivateUserUseCase{
+func NewVerifyUserUseCase(r UserRepository, s TokenRepository) *VerifyUserUseCase {
+	return &VerifyUserUseCase{
 		repo:         r,
 		tokenStorage: s,
 	}
 }
 
-func (uc *ActivateUserUseCase) Execute(input VerificationInput) error {
+func (uc *VerifyUserUseCase) Execute(input VerificationInput) error {
 	userToken := input.Token
 
 	userId, err := uc.tokenStorage.LoadVerificationToken(userToken)

@@ -52,6 +52,10 @@ func (uc *SwitchUserRoleUseCase) Execute(input SwitchUserRoleInput) error {
 		return fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
+	if err := targetUser.EnsureActive(); err != nil {
+		return err
+	}
+
 	if err := targetUser.SetRole(input.NewRole); err != nil {
 		return err
 	}

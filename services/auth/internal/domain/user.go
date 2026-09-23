@@ -20,6 +20,7 @@ var (
 	ErrPermissionDenied = errors.New("permission denied")
 	ErrUnableToSetAdmin = errors.New("unable to set admin role")
 	ErrUnchangedRole    = errors.New("role didn't change")
+	ErrUserDiactivated  = errors.New("profile deleted")
 )
 
 type User struct {
@@ -31,6 +32,7 @@ type User struct {
 	Phone        string `json:"phone" db:"phone"`
 	Role         Role   `json:"role" db:"role"`
 	IsVerified   bool   `json:"isVerified" db:"is_verified"`
+	IsActive     bool   `json:"isActive" db:"is_active"`
 }
 
 func IsEmailValid(e string) bool {
@@ -79,6 +81,7 @@ func NewUser(email, passwordHash, name, surname, phone string) (*User, error) {
 		Phone:        phone,
 		Role:         1,
 		IsVerified:   false,
+		IsActive:     true,
 	}, nil
 
 }
@@ -154,4 +157,16 @@ func (u *User) SetRole(role Role) error {
 	u.Role = role
 
 	return nil
+}
+
+func (u *User) EnsureActive() error {
+	if !u.IsActive {
+		return ErrUserDiactivated
+	}
+
+	return nil
+}
+
+func (u *User) Deactivate() {
+	u.IsActive = false
 }

@@ -32,25 +32,29 @@ func NewLoginUserUseCase(r UserRepository, s TokenRepository, g TokenGenerator) 
 }
 
 func (uc *LoginUserUseCase) Execute(input LoginInput) (domain.TokenPair, error) {
-	user, err := uc.repo.GetUserByEmail(input.Email)
+	userEntity, err := uc.repo.GetUserByEmail(input.Email)
 	if err != nil {
 		return domain.TokenPair{}, ErrInvalidCredentials
 	}
 
-	if isValid, err := security.IsPasswordValid(input.Password, user.PasswordHash); err != nil || !isValid {
+	if err := userEntity.EnsureActive(); err != nil {
+		return domain.TokenPair{}, err
+	}
+
+	if isValid, err := security.IsPasswordValid(input.Password, userEntity.PasswordHash); err != nil || !isValid {
 		return domain.TokenPair{}, ErrInvalidCredentials
 	}
 
-	if !user.IsVerified {
+	if !userEntity.IsVerified {
 		return domain.TokenPair{}, ErrEmailIsNotVerified
 	}
 
-	tokens, err := uc.tokenGenerator.GenerateTokens(user.ID)
+	tokens, err := uc.tokenGenerator.GenerateTokens(userEntity.ID)
 	if err != nil {
 		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenPairGenerationFail, err)
 	}
 
-	if err := uc.tokenStorage.SaveTokenPair(user.ID, tokens); err != nil {
+	if err := uc.tokenStorage.SaveTokenPair(userEntity.ID, tokens); err != nil {
 		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenPairSaveFail, err)
 	}
 

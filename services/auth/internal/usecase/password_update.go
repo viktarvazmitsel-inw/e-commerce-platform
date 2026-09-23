@@ -45,6 +45,10 @@ func (uc *PasswordUpdateUseCase) Execute(input PasswordUpdateInput) error {
 		return fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
+	if err := userEntity.EnsureActive(); err != nil {
+		return err
+	}
+
 	if isPasswordValid, err := security.IsPasswordValid(input.OldPassword, userEntity.PasswordHash); err != nil || !isPasswordValid {
 		return ErrInvalidPassword
 	}
