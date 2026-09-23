@@ -50,7 +50,7 @@ func (uc *UpdateUserProfileUseCase) Execute(input UpdateUserProfileInput) error 
 	}
 
 	if err := uc.repo.Save(userEntity); err != nil {
-		return fmt.Errorf("failed to save user: %w", err)
+		return fmt.Errorf("unable to save user: %w", err)
 	}
 
 	return nil

@@ -49,7 +49,7 @@ func (uc *LoginUserUseCase) Execute(input LoginInput) (domain.TokenPair, error) 
 		return domain.TokenPair{}, ErrEmailIsNotVerified
 	}
 
-	tokens, err := uc.tokenGenerator.GenerateTokens(userEntity.ID)
+	tokens, err := uc.tokenGenerator.GenerateTokens(userEntity.ID, userEntity.Role)
 	if err != nil {
 		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenPairGenerationFail, err)
 	}

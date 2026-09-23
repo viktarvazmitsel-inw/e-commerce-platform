@@ -10,8 +10,13 @@ type EmailUpdateTokenData struct {
 	NewEmail string `json:"new_email"`
 }
 
+type UserInfoTokenData struct {
+	UserID string      `json:"user_id"`
+	Role   domain.Role `json:"role"`
+}
+
 type TokenGenerator interface {
-	GenerateTokens(ID string) (domain.TokenPair, error)
+	GenerateTokens(ID string, role domain.Role) (domain.TokenPair, error)
 }
 
 type UserRepository interface {
@@ -27,10 +32,11 @@ type TokenRepository interface {
 	LoadVerificationToken(token string) (string, error)
 	DeleteVerificationToken(token string) error
 	SaveTokenPair(userID string, pair domain.TokenPair) error
-	GetUserIDByRefreshToken(token string) (string, error)
+	GetUserInfoByRefreshToken(token string) (*UserInfoTokenData, error)
 	UnsetAndSaveTokenPair(token, userId string, pair domain.TokenPair) error
 	SaveEmailUpdateToken(userID, newEmail, token string, ttl time.Duration) error
 	LoadEmailUpdateToken(token string) (*EmailUpdateTokenData, error)
 	DeleteEmailUpdateToken(token string) error
+	RevokeUserAccess(userID string) error
 	RevokeAllUserSessions(userID string) error
 }

@@ -49,7 +49,7 @@ func (uc *SoftDeleteProfileUseCase) Execute(input SoftDeleteProfileInput) error 
 	userEntity.Deactivate()
 
 	if err := uc.repo.Save(userEntity); err != nil {
-		return fmt.Errorf("failed to save user: %w", err)
+		return fmt.Errorf("unable to save user: %v", err)
 	}
 
 	if err := uc.tokenStorage.RevokeAllUserSessions(userEntity.ID); err != nil {

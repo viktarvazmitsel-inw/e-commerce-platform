@@ -53,7 +53,7 @@ func (uc *RegisterUserUseCase) Execute(input RegisterInput) error {
 	}
 
 	if err := uc.repo.Save(userEntity); err != nil {
-		return err
+		return fmt.Errorf("unable to save user: %w", err)
 	}
 
 	token, err := security.GenerateEmailVerificationToken(userEntity.ID)

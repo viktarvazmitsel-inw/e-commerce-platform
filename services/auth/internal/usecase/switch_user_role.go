@@ -13,12 +13,14 @@ type SwitchUserRoleInput struct {
 }
 
 type SwitchUserRoleUseCase struct {
-	repo UserRepository
+	repo         UserRepository
+	tokenStorage TokenRepository
 }
 
-func NewSwitchUserRoleUseCase(r UserRepository) *SwitchUserRoleUseCase {
+func NewSwitchUserRoleUseCase(r UserRepository, s TokenRepository) *SwitchUserRoleUseCase {
 	return &SwitchUserRoleUseCase{
-		repo: r,
+		repo:         r,
+		tokenStorage: s,
 	}
 }
 
@@ -62,6 +64,10 @@ func (uc *SwitchUserRoleUseCase) Execute(input SwitchUserRoleInput) error {
 
 	if err := uc.repo.Save(targetUser); err != nil {
 		return fmt.Errorf("unable to save user: %w", err)
+	}
+
+	if err := uc.tokenStorage.RevokeUserAccess(input.TargetID); err != nil {
+		return fmt.Errorf("unable to revoke user access token: %w", err)
 	}
 
 	return nil
