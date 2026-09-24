@@ -3,7 +3,6 @@ package usecase
 import (
 	"errors"
 	"fmt"
-	"log"
 )
 
 var (
@@ -57,8 +56,7 @@ func (uc *ConfirmEmailUpdateUseCase) Execute(input ConfirmEmailUpdateInput) erro
 	}
 
 	if err := uc.tokenStorage.RevokeAllUserSessions(tokenData.UserID); err != nil {
-		log.Printf("[SECURITY WARN] Failed to revoke sessions for user %s after password change: %v", userEntity.ID, err)
-		return nil
+		return fmt.Errorf("failed to revoke user session: %w", err)
 	}
 
 	return nil

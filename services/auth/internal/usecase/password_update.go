@@ -4,7 +4,6 @@ import (
 	"authorization/internal/domain/security"
 	"errors"
 	"fmt"
-	"log"
 )
 
 var ErrSameNewPassword = errors.New("new passwrod must be defferent from current one")
@@ -71,8 +70,7 @@ func (uc *PasswordUpdateUseCase) Execute(input PasswordUpdateInput) error {
 	}
 
 	if err := uc.tokenStorage.RevokeAllUserSessions(input.UserID); err != nil {
-		log.Printf("[SECURITY WARN] Failed to revoke sessions for user %s after password change: %v", input.UserID, err)
-		return nil
+		return fmt.Errorf("failed to revoke user session: %w", err)
 	}
 
 	return nil

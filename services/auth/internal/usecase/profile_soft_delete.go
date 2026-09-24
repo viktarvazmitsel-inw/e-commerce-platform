@@ -4,7 +4,6 @@ import (
 	"authorization/internal/domain/security"
 	"errors"
 	"fmt"
-	"log"
 )
 
 type SoftDeleteProfileInput struct {
@@ -53,8 +52,7 @@ func (uc *SoftDeleteProfileUseCase) Execute(input SoftDeleteProfileInput) error 
 	}
 
 	if err := uc.tokenStorage.RevokeAllUserSessions(userEntity.ID); err != nil {
-		log.Printf("[SECURITY WARN] Failed to revoke sessions for user %s after profile deactivation: %v", input.UserID, err)
-		return nil
+		return fmt.Errorf("failed to revoke user session: %w", err)
 	}
 
 	return nil
