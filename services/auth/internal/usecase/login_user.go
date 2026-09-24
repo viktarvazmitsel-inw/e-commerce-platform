@@ -2,14 +2,8 @@ package usecase
 
 import (
 	"authorization/internal/domain"
-	"authorization/internal/domain/security"
-	"errors"
+	"context"
 	"fmt"
-)
-
-var (
-	ErrInvalidCredentials = errors.New("invalid user or password")
-	ErrEmailIsNotVerified = errors.New("Email is not verified")
 )
 
 type LoginInput struct {
@@ -19,21 +13,32 @@ type LoginInput struct {
 
 type LoginUserUseCase struct {
 	repo           UserRepository
-	tokenStorage   TokenRepository
+	tokenStorage   SessionRepository
 	tokenGenerator TokenGenerator
+	passwordHasher PasswordHasher
 }
 
-func NewLoginUserUseCase(r UserRepository, s TokenRepository, g TokenGenerator) *LoginUserUseCase {
+func NewLoginUserUseCase(
+	r UserRepository,
+	s SessionRepository,
+	g TokenGenerator,
+	h PasswordHasher,
+) *LoginUserUseCase {
 	return &LoginUserUseCase{
 		repo:           r,
 		tokenStorage:   s,
 		tokenGenerator: g,
+		passwordHasher: h,
 	}
 }
 
-func (uc *LoginUserUseCase) Execute(input LoginInput) (domain.TokenPair, error) {
-	userEntity, err := uc.repo.GetUserByEmail(input.Email)
+func (uc *LoginUserUseCase) Execute(ctx context.Context, input LoginInput) (domain.TokenPair, error) {
+	userEntity, err := uc.repo.GetUserByEmail(ctx, input.Email)
 	if err != nil {
+		return domain.TokenPair{}, ErrInvalidCredentials
+	}
+
+	if !uc.passwordHasher.Compare(input.Password, userEntity.PasswordHash) {
 		return domain.TokenPair{}, ErrInvalidCredentials
 	}
 
@@ -41,20 +46,16 @@ func (uc *LoginUserUseCase) Execute(input LoginInput) (domain.TokenPair, error) 
 		return domain.TokenPair{}, err
 	}
 
-	if isValid, err := security.IsPasswordValid(input.Password, userEntity.PasswordHash); err != nil || !isValid {
-		return domain.TokenPair{}, ErrInvalidCredentials
-	}
-
 	if !userEntity.IsVerified {
-		return domain.TokenPair{}, ErrEmailIsNotVerified
+		return domain.TokenPair{}, ErrUserEmailIsNotVerified
 	}
 
-	tokens, err := uc.tokenGenerator.GenerateTokens(userEntity.ID, userEntity.Role)
+	tokens, err := uc.tokenGenerator.GenerateTokens(ctx, userEntity.ID, userEntity.Role)
 	if err != nil {
 		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenPairGenerationFail, err)
 	}
 
-	if err := uc.tokenStorage.SaveTokenPair(userEntity.ID, tokens); err != nil {
+	if err := uc.tokenStorage.SaveTokenPair(ctx, userEntity.ID, tokens); err != nil {
 		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenPairSaveFail, err)
 	}
 

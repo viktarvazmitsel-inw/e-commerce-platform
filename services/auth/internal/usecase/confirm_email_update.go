@@ -1,12 +1,9 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
-)
-
-var (
-	ErrInvalidUpdateEmailToken = errors.New("invalid update token")
 )
 
 type ConfirmEmailUpdateInput struct {
@@ -14,28 +11,34 @@ type ConfirmEmailUpdateInput struct {
 }
 
 type ConfirmEmailUpdateUseCase struct {
-	repo         UserRepository
-	tokenStorage TokenRepository
+	repo                UserRepository
+	emailTokenStorage   EmailUpdateTokenRepository
+	sessionTokenStorage SessionRepository
 }
 
-func NewConfirmEmailUpdateUseCase(r UserRepository, s TokenRepository) *ConfirmEmailUpdateUseCase {
+func NewConfirmEmailUpdateUseCase(
+	r UserRepository,
+	es EmailUpdateTokenRepository,
+	ss SessionRepository,
+) *ConfirmEmailUpdateUseCase {
 	return &ConfirmEmailUpdateUseCase{
-		repo:         r,
-		tokenStorage: s,
+		repo:                r,
+		emailTokenStorage:   es,
+		sessionTokenStorage: ss,
 	}
 }
 
-func (uc *ConfirmEmailUpdateUseCase) Execute(input ConfirmEmailUpdateInput) error {
+func (uc *ConfirmEmailUpdateUseCase) Execute(ctx context.Context, input ConfirmEmailUpdateInput) error {
 	if input.Token == "" {
 		return ErrInvalidUpdateEmailToken
 	}
 
-	tokenData, err := uc.tokenStorage.LoadEmailUpdateToken(input.Token)
+	tokenData, err := uc.emailTokenStorage.LoadEmailUpdateToken(ctx, input.Token)
 	if err != nil {
 		return ErrInvalidUpdateEmailToken
 	}
 
-	userEntity, err := uc.repo.GetUserById(tokenData.UserID)
+	userEntity, err := uc.repo.GetUserByID(ctx, tokenData.UserID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return ErrUserIdNotFound
@@ -43,19 +46,27 @@ func (uc *ConfirmEmailUpdateUseCase) Execute(input ConfirmEmailUpdateInput) erro
 		return fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
-	if err := userEntity.UpdateUserEmail(tokenData.NewEmail); err != nil {
+	if err := userEntity.EnsureActive(); err != nil {
 		return err
 	}
 
-	if err := uc.repo.Save(userEntity); err != nil {
+	if err := userEntity.UpdateUserEmail(tokenData.NewEmail); err != nil {
+		if errors.Is(err, ErrEmailAlreadyTaken) {
+			return ErrEmailAlreadyTaken
+		}
+
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 
-	if err := uc.tokenStorage.DeleteEmailUpdateToken(input.Token); err != nil {
+	if err := uc.repo.Save(ctx, userEntity); err != nil {
+		return fmt.Errorf("unable to save user: %w", err)
+	}
+
+	if err := uc.emailTokenStorage.DeleteEmailUpdateToken(ctx, input.Token); err != nil {
 		return fmt.Errorf("failed to delete email update token: %w", err)
 	}
 
-	if err := uc.tokenStorage.RevokeAllUserSessions(tokenData.UserID); err != nil {
+	if err := uc.sessionTokenStorage.RevokeAllUserSessions(ctx, tokenData.UserID); err != nil {
 		return fmt.Errorf("failed to revoke user session: %w", err)
 	}
 

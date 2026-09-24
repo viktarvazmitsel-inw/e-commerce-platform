@@ -3,9 +3,9 @@ package domain
 type Role int
 
 const (
-	RoleClient    Role = 1
-	RoleAnalycist Role = 2
-	RoleAdmin     Role = 3
+	RoleClient  Role = 1
+	RoleAnalyst Role = 2
+	RoleAdmin   Role = 3
 )
 
 type Permission string

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"authorization/internal/domain"
+	"context"
 	"errors"
 	"fmt"
 )
@@ -43,12 +44,12 @@ func toProfile(u *domain.User) *UserProfile {
 	}
 }
 
-func (uc *GetUserProfileUseCase) Execute(input GetUserInput) (*UserProfile, error) {
+func (uc *GetUserProfileUseCase) Execute(ctx context.Context, input GetUserInput) (*UserProfile, error) {
 	if input.ID == "" {
 		return nil, ErrUserIdNotFound
 	}
 
-	userData, err := uc.repo.GetUserById(input.ID)
+	userData, err := uc.repo.GetUserByID(ctx, input.ID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return nil, ErrUserIdNotFound

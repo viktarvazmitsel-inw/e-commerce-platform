@@ -6,7 +6,7 @@ import (
 	"uuid"
 )
 
-func GenerateEmailVerificationToken(uuid string) (string, error) {
+func GenerateEmailVerificationToken() (string, error) {
 	bytes := make([]byte, 30)
 
 	if _, err := rand.Read(bytes); err != nil {

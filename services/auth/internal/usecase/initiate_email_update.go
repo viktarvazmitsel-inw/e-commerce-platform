@@ -3,13 +3,12 @@ package usecase
 import (
 	"authorization/internal/domain"
 	"authorization/internal/domain/security"
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 )
-
-var ErrSameEmail = errors.New("new email must be different from current")
 
 type EmailUpdateInput struct {
 	ID       string
@@ -18,25 +17,32 @@ type EmailUpdateInput struct {
 }
 
 type InitiateEmailUpdateUseCase struct {
-	repo         UserRepository
-	mail         EmailSender
-	tokenStorage TokenRepository
+	repo           UserRepository
+	mail           EmailSender
+	tokenStorage   EmailUpdateTokenRepository
+	passwordHasher PasswordHasher
 }
 
-func NewInitiateEmailUpdateUseCase(r UserRepository, m EmailSender, s TokenRepository) *InitiateEmailUpdateUseCase {
+func NewInitiateEmailUpdateUseCase(
+	r UserRepository,
+	m EmailSender,
+	s EmailUpdateTokenRepository,
+	h PasswordHasher,
+) *InitiateEmailUpdateUseCase {
 	return &InitiateEmailUpdateUseCase{
-		repo:         r,
-		mail:         m,
-		tokenStorage: s,
+		repo:           r,
+		mail:           m,
+		tokenStorage:   s,
+		passwordHasher: h,
 	}
 }
 
-func (uc *InitiateEmailUpdateUseCase) Execute(input EmailUpdateInput) error {
+func (uc *InitiateEmailUpdateUseCase) Execute(ctx context.Context, input EmailUpdateInput) error {
 	if input.ID == "" {
 		return ErrUserIdNotFound
 	}
 
-	userEntity, err := uc.repo.GetUserById(input.ID)
+	userEntity, err := uc.repo.GetUserByID(ctx, input.ID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return ErrUserIdNotFound
@@ -48,7 +54,7 @@ func (uc *InitiateEmailUpdateUseCase) Execute(input EmailUpdateInput) error {
 		return err
 	}
 
-	if isPasswordValid, err := security.IsPasswordValid(input.Password, userEntity.PasswordHash); err != nil || !isPasswordValid {
+	if !uc.passwordHasher.Compare(input.Password, userEntity.PasswordHash) {
 		return ErrInvalidPassword
 	}
 
@@ -62,20 +68,25 @@ func (uc *InitiateEmailUpdateUseCase) Execute(input EmailUpdateInput) error {
 		return domain.ErrInvalidEmail
 	}
 
-	if uc.repo.IsEmailTaken(trimmedNewEmail) {
+	isTaken, err := uc.repo.IsEmailTaken(ctx, trimmedNewEmail)
+	if err != nil {
+		return fmt.Errorf("unable to connect database: %w", err)
+	}
+
+	if isTaken {
 		return ErrEmailAlreadyTaken
 	}
 
-	token, err := security.GenerateEmailVerificationToken(userEntity.ID)
+	token, err := security.GenerateEmailVerificationToken()
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrTokenGenerationFailed, err)
 	}
 
-	if err := uc.tokenStorage.SaveEmailUpdateToken(userEntity.ID, trimmedNewEmail, token, time.Hour); err != nil {
+	if err := uc.tokenStorage.SaveEmailUpdateToken(ctx, userEntity.ID, trimmedNewEmail, token, time.Hour); err != nil {
 		return fmt.Errorf("%w: %v", ErrVerificationTokenSaveFailed, err)
 	}
 
-	if err := uc.mail.SendVerificationEmail(trimmedNewEmail, token); err != nil {
+	if err := uc.mail.SendVerificationEmail(ctx, trimmedNewEmail, token); err != nil {
 		return fmt.Errorf("%w: %v", ErrVerificationEmailSendFailed, err)
 	}
 

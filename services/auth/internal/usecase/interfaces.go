@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"authorization/internal/domain"
+	"context"
 	"time"
 )
 
@@ -15,28 +16,42 @@ type UserInfoTokenData struct {
 	Role   domain.Role `json:"role"`
 }
 
+type PasswordHasher interface {
+	Hash(password string) (string, error)
+	Compare(password, hash string) bool
+}
+
 type TokenGenerator interface {
-	GenerateTokens(ID string, role domain.Role) (domain.TokenPair, error)
+	GenerateTokens(ctx context.Context, ID string, role domain.Role) (domain.TokenPair, error)
 }
 
 type UserRepository interface {
-	IsEmailTaken(email string) bool
-	Save(user *domain.User) error
-	GetUserByEmail(email string) (*domain.User, error)
-	GetUserById(ID string) (*domain.User, error)
-	ActivateUser(uuid string) error
+	IsEmailTaken(ctx context.Context, email string) (bool, error)
+	Save(ctx context.Context, user *domain.User) error
+	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	GetUserByID(ctx context.Context, ID string) (*domain.User, error)
 }
 
-type TokenRepository interface {
-	SaveVerificationToken(userID, token string, ttl time.Duration) error
-	LoadVerificationToken(token string) (string, error)
-	DeleteVerificationToken(token string) error
-	SaveTokenPair(userID string, pair domain.TokenPair) error
-	GetUserInfoByRefreshToken(token string) (*UserInfoTokenData, error)
-	UnsetAndSaveTokenPair(token, userId string, pair domain.TokenPair) error
-	SaveEmailUpdateToken(userID, newEmail, token string, ttl time.Duration) error
-	LoadEmailUpdateToken(token string) (*EmailUpdateTokenData, error)
-	DeleteEmailUpdateToken(token string) error
-	RevokeUserAccess(userID string) error
-	RevokeAllUserSessions(userID string) error
+type VerificationTokenRepository interface {
+	SaveVerificationToken(ctx context.Context, userID, token string, ttl time.Duration) error
+	LoadVerificationToken(ctx context.Context, token string) (string, error)
+	DeleteVerificationToken(ctx context.Context, token string) error
+}
+
+type EmailUpdateTokenRepository interface {
+	SaveEmailUpdateToken(ctx context.Context, userID, newEmail, token string, ttl time.Duration) error
+	LoadEmailUpdateToken(ctx context.Context, token string) (*EmailUpdateTokenData, error)
+	DeleteEmailUpdateToken(ctx context.Context, token string) error
+}
+
+type SessionRepository interface {
+	SaveTokenPair(ctx context.Context, userID string, pair domain.TokenPair) error
+	GetUserInfoByRefreshToken(ctx context.Context, token string) (*UserInfoTokenData, error)
+	UnsetAndSaveTokenPair(ctx context.Context, token, userId string, pair domain.TokenPair) error
+	RevokeAllUserSessions(ctx context.Context, userID string) error
+	RevokeCurrentUserSession(ctx context.Context, userID, token string) error
+}
+
+type EmailSender interface {
+	SendVerificationEmail(ctx context.Context, email string, token string) error
 }

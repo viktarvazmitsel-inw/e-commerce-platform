@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"authorization/internal/domain"
+	"context"
 	"errors"
 	"fmt"
 )
@@ -14,17 +15,17 @@ type SwitchUserRoleInput struct {
 
 type SwitchUserRoleUseCase struct {
 	repo         UserRepository
-	tokenStorage TokenRepository
+	tokenStorage SessionRepository
 }
 
-func NewSwitchUserRoleUseCase(r UserRepository, s TokenRepository) *SwitchUserRoleUseCase {
+func NewSwitchUserRoleUseCase(r UserRepository, s SessionRepository) *SwitchUserRoleUseCase {
 	return &SwitchUserRoleUseCase{
 		repo:         r,
 		tokenStorage: s,
 	}
 }
 
-func (uc *SwitchUserRoleUseCase) Execute(input SwitchUserRoleInput) error {
+func (uc *SwitchUserRoleUseCase) Execute(ctx context.Context, input SwitchUserRoleInput) error {
 	if input.AuthorID == "" {
 		return ErrUnauthorizedAction
 	}
@@ -32,7 +33,7 @@ func (uc *SwitchUserRoleUseCase) Execute(input SwitchUserRoleInput) error {
 		return ErrUserIdNotFound
 	}
 
-	authorUser, err := uc.repo.GetUserById(input.AuthorID)
+	authorUser, err := uc.repo.GetUserByID(ctx, input.AuthorID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return ErrUserIdNotFound
@@ -45,7 +46,7 @@ func (uc *SwitchUserRoleUseCase) Execute(input SwitchUserRoleInput) error {
 		return err
 	}
 
-	targetUser, err := uc.repo.GetUserById(input.TargetID)
+	targetUser, err := uc.repo.GetUserByID(ctx, input.TargetID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return ErrUserIdNotFound
@@ -62,11 +63,11 @@ func (uc *SwitchUserRoleUseCase) Execute(input SwitchUserRoleInput) error {
 		return err
 	}
 
-	if err := uc.repo.Save(targetUser); err != nil {
+	if err := uc.repo.Save(ctx, targetUser); err != nil {
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 
-	if err := uc.tokenStorage.RevokeUserAccess(input.TargetID); err != nil {
+	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, input.TargetID); err != nil {
 		return fmt.Errorf("unable to revoke user access token: %w", err)
 	}
 

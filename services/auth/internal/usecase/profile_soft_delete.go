@@ -1,7 +1,7 @@
 package usecase
 
 import (
-	"authorization/internal/domain/security"
+	"context"
 	"errors"
 	"fmt"
 )
@@ -12,23 +12,25 @@ type SoftDeleteProfileInput struct {
 }
 
 type SoftDeleteProfileUseCase struct {
-	repo         UserRepository
-	tokenStorage TokenRepository
+	repo           UserRepository
+	tokenStorage   SessionRepository
+	passwordHasher PasswordHasher
 }
 
-func NewSoftDeleteProfileUseCase(r UserRepository, s TokenRepository) *SoftDeleteProfileUseCase {
+func NewSoftDeleteProfileUseCase(r UserRepository, s SessionRepository, h PasswordHasher) *SoftDeleteProfileUseCase {
 	return &SoftDeleteProfileUseCase{
-		repo:         r,
-		tokenStorage: s,
+		repo:           r,
+		tokenStorage:   s,
+		passwordHasher: h,
 	}
 }
 
-func (uc *SoftDeleteProfileUseCase) Execute(input SoftDeleteProfileInput) error {
+func (uc *SoftDeleteProfileUseCase) Execute(ctx context.Context, input SoftDeleteProfileInput) error {
 	if input.UserID == "" {
 		return ErrUserIdNotFound
 	}
 
-	userEntity, err := uc.repo.GetUserById(input.UserID)
+	userEntity, err := uc.repo.GetUserByID(ctx, input.UserID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return ErrUserIdNotFound
@@ -41,17 +43,17 @@ func (uc *SoftDeleteProfileUseCase) Execute(input SoftDeleteProfileInput) error 
 		return err
 	}
 
-	if isPasswordValid, err := security.IsPasswordValid(input.Password, userEntity.PasswordHash); err != nil || !isPasswordValid {
+	if !uc.passwordHasher.Compare(input.Password, userEntity.PasswordHash) {
 		return ErrInvalidPassword
 	}
 
 	userEntity.Deactivate()
 
-	if err := uc.repo.Save(userEntity); err != nil {
-		return fmt.Errorf("unable to save user: %v", err)
+	if err := uc.repo.Save(ctx, userEntity); err != nil {
+		return fmt.Errorf("unable to save user: %w", err)
 	}
 
-	if err := uc.tokenStorage.RevokeAllUserSessions(userEntity.ID); err != nil {
+	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, userEntity.ID); err != nil {
 		return fmt.Errorf("failed to revoke user session: %w", err)
 	}
 

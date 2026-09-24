@@ -1,14 +1,8 @@
 package usecase
 
 import (
-	"errors"
+	"context"
 	"fmt"
-)
-
-var (
-	ErrWrongVerificationToken      = errors.New("wrong verification token")
-	ErrUserActivationFail          = errors.New("user activation failed")
-	ErrVerificationTokenDeleteFail = errors.New("failed to delete verification token")
 )
 
 type VerificationInput struct {
@@ -17,29 +11,36 @@ type VerificationInput struct {
 
 type VerifyUserUseCase struct {
 	repo         UserRepository
-	tokenStorage TokenRepository
+	tokenStorage VerificationTokenRepository
 }
 
-func NewVerifyUserUseCase(r UserRepository, s TokenRepository) *VerifyUserUseCase {
+func NewVerifyUserUseCase(r UserRepository, s VerificationTokenRepository) *VerifyUserUseCase {
 	return &VerifyUserUseCase{
 		repo:         r,
 		tokenStorage: s,
 	}
 }
 
-func (uc *VerifyUserUseCase) Execute(input VerificationInput) error {
+func (uc *VerifyUserUseCase) Execute(ctx context.Context, input VerificationInput) error {
 	userToken := input.Token
 
-	userId, err := uc.tokenStorage.LoadVerificationToken(userToken)
+	userID, err := uc.tokenStorage.LoadVerificationToken(ctx, userToken)
 	if err != nil {
 		return ErrWrongVerificationToken
 	}
 
-	if err := uc.repo.ActivateUser(userId); err != nil {
-		return fmt.Errorf("%w: %v", ErrUserActivationFail, err)
+	userEntity, err := uc.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return ErrUserIdNotFound
 	}
 
-	if err := uc.tokenStorage.DeleteVerificationToken(userToken); err != nil {
+	userEntity.VerifyEmail()
+
+	if err := uc.repo.Save(ctx, userEntity); err != nil {
+		return fmt.Errorf("failed to save user: %w", err)
+	}
+
+	if err := uc.tokenStorage.DeleteVerificationToken(ctx, userToken); err != nil {
 		return ErrVerificationTokenDeleteFail
 	}
 

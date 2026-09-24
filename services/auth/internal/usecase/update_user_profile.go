@@ -1,11 +1,10 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
-
-var ErrUserEmailIsNotVerified = errors.New("user email is not verified yet")
 
 type UpdateUserProfileInput struct {
 	ID      string
@@ -24,12 +23,12 @@ func NewUpdateUserProfileUseCase(r UserRepository) *UpdateUserProfileUseCase {
 	}
 }
 
-func (uc *UpdateUserProfileUseCase) Execute(input UpdateUserProfileInput) error {
+func (uc *UpdateUserProfileUseCase) Execute(ctx context.Context, input UpdateUserProfileInput) error {
 	if input.ID == "" {
 		return ErrUserIdNotFound
 	}
 
-	userEntity, err := uc.repo.GetUserById(input.ID)
+	userEntity, err := uc.repo.GetUserByID(ctx, input.ID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return ErrUserIdNotFound
@@ -49,7 +48,7 @@ func (uc *UpdateUserProfileUseCase) Execute(input UpdateUserProfileInput) error 
 		return err
 	}
 
-	if err := uc.repo.Save(userEntity); err != nil {
+	if err := uc.repo.Save(ctx, userEntity); err != nil {
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 

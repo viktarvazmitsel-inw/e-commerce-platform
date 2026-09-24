@@ -3,13 +3,11 @@ package usecase
 import (
 	"authorization/internal/domain"
 	"authorization/internal/domain/security"
+	"context"
+	"errors"
 	"fmt"
 	"time"
 )
-
-type EmailSender interface {
-	SendVerificationEmail(email string, token string) error
-}
 
 type RegisterInput struct {
 	Email    string
@@ -17,33 +15,46 @@ type RegisterInput struct {
 	Name     string
 	Surname  string
 	Phone    string
+	TokenTTL time.Duration
 }
 
 type RegisterUserUseCase struct {
-	repo         UserRepository
-	mail         EmailSender
-	tokenStorage TokenRepository
+	repo           UserRepository
+	mail           EmailSender
+	tokenStorage   VerificationTokenRepository
+	passwordHasher PasswordHasher
 }
 
-func NewRegisterUserUseCase(r UserRepository, m EmailSender, s TokenRepository) *RegisterUserUseCase {
+func NewRegisterUserUseCase(
+	r UserRepository,
+	m EmailSender,
+	s VerificationTokenRepository,
+	h PasswordHasher,
+) *RegisterUserUseCase {
 	return &RegisterUserUseCase{
-		repo:         r,
-		mail:         m,
-		tokenStorage: s,
+		repo:           r,
+		mail:           m,
+		tokenStorage:   s,
+		passwordHasher: h,
 	}
 }
 
-func (uc *RegisterUserUseCase) Execute(input RegisterInput) error {
+func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput) error {
 	if !security.IsPasswordStrong(input.Password) {
 		return ErrPasswordIsNotStrongEnough
 	}
 
-	passwordHash, err := security.HashPassword(input.Password)
+	passwordHash, err := uc.passwordHasher.Hash(input.Password)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrPasswordHashFailed, err)
 	}
 
-	if uc.repo.IsEmailTaken(input.Email) {
+	isTaken, err := uc.repo.IsEmailTaken(ctx, input.Email)
+	if err != nil {
+		return fmt.Errorf("unable to connect database: %w", err)
+	}
+
+	if isTaken {
 		return ErrEmailAlreadyTaken
 	}
 
@@ -52,20 +63,23 @@ func (uc *RegisterUserUseCase) Execute(input RegisterInput) error {
 		return err
 	}
 
-	if err := uc.repo.Save(userEntity); err != nil {
+	if err := uc.repo.Save(ctx, userEntity); err != nil {
+		if errors.Is(err, ErrEmailAlreadyTaken) {
+			return ErrEmailAlreadyTaken
+		}
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 
-	token, err := security.GenerateEmailVerificationToken(userEntity.ID)
+	token, err := security.GenerateEmailVerificationToken()
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrTokenGenerationFailed, err)
 	}
 
-	if err := uc.tokenStorage.SaveVerificationToken(userEntity.ID, token, time.Hour); err != nil {
+	if err := uc.tokenStorage.SaveVerificationToken(ctx, userEntity.ID, token, input.TokenTTL); err != nil {
 		return fmt.Errorf("%w: %v", ErrVerificationTokenSaveFailed, err)
 	}
 
-	if err := uc.mail.SendVerificationEmail(userEntity.Email, token); err != nil {
+	if err := uc.mail.SendVerificationEmail(ctx, userEntity.Email, token); err != nil {
 		return fmt.Errorf("%w: %v", ErrVerificationEmailSendFailed, err)
 	}
 

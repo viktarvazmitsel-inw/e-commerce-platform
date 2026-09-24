@@ -2,11 +2,10 @@ package usecase
 
 import (
 	"authorization/internal/domain/security"
+	"context"
 	"errors"
 	"fmt"
 )
-
-var ErrSameNewPassword = errors.New("new passwrod must be defferent from current one")
 
 type PasswordUpdateInput struct {
 	UserID      string
@@ -15,18 +14,20 @@ type PasswordUpdateInput struct {
 }
 
 type PasswordUpdateUseCase struct {
-	repo         UserRepository
-	tokenStorage TokenRepository
+	repo           UserRepository
+	tokenStorage   SessionRepository
+	passwordHasher PasswordHasher
 }
 
-func NewPasswordUpdateUseCase(r UserRepository, s TokenRepository) *PasswordUpdateUseCase {
+func NewPasswordUpdateUseCase(r UserRepository, s SessionRepository, h PasswordHasher) *PasswordUpdateUseCase {
 	return &PasswordUpdateUseCase{
-		repo:         r,
-		tokenStorage: s,
+		repo:           r,
+		tokenStorage:   s,
+		passwordHasher: h,
 	}
 }
 
-func (uc *PasswordUpdateUseCase) Execute(input PasswordUpdateInput) error {
+func (uc *PasswordUpdateUseCase) Execute(ctx context.Context, input PasswordUpdateInput) error {
 	if input.UserID == "" {
 		return ErrUserIdNotFound
 	}
@@ -35,7 +36,7 @@ func (uc *PasswordUpdateUseCase) Execute(input PasswordUpdateInput) error {
 		return ErrSameNewPassword
 	}
 
-	userEntity, err := uc.repo.GetUserById(input.UserID)
+	userEntity, err := uc.repo.GetUserByID(ctx, input.UserID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return ErrUserIdNotFound
@@ -48,7 +49,7 @@ func (uc *PasswordUpdateUseCase) Execute(input PasswordUpdateInput) error {
 		return err
 	}
 
-	if isPasswordValid, err := security.IsPasswordValid(input.OldPassword, userEntity.PasswordHash); err != nil || !isPasswordValid {
+	if !uc.passwordHasher.Compare(input.OldPassword, userEntity.PasswordHash) {
 		return ErrInvalidPassword
 	}
 
@@ -56,7 +57,7 @@ func (uc *PasswordUpdateUseCase) Execute(input PasswordUpdateInput) error {
 		return ErrPasswordIsNotStrongEnough
 	}
 
-	newPasswordHash, err := security.HashPassword(input.NewPassword)
+	newPasswordHash, err := uc.passwordHasher.Hash(input.NewPassword)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrPasswordHashFailed, err)
 	}
@@ -65,11 +66,11 @@ func (uc *PasswordUpdateUseCase) Execute(input PasswordUpdateInput) error {
 		return err
 	}
 
-	if err := uc.repo.Save(userEntity); err != nil {
+	if err := uc.repo.Save(ctx, userEntity); err != nil {
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 
-	if err := uc.tokenStorage.RevokeAllUserSessions(input.UserID); err != nil {
+	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, input.UserID); err != nil {
 		return fmt.Errorf("failed to revoke user session: %w", err)
 	}
 

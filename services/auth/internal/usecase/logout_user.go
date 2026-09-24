@@ -1,27 +1,35 @@
 package usecase
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 type LogoutUserInput struct {
 	UserID string
+	Token  string
 }
 
 type LogoutUserUseCase struct {
-	tokenStorage TokenRepository
+	tokenStorage SessionRepository
 }
 
-func NewLogoutUserUseCase(s TokenRepository) *LogoutUserUseCase {
+func NewLogoutUserUseCase(s SessionRepository) *LogoutUserUseCase {
 	return &LogoutUserUseCase{
 		tokenStorage: s,
 	}
 }
 
-func (uc *LogoutUserUseCase) Execute(input LogoutUserInput) error {
+func (uc *LogoutUserUseCase) Execute(ctx context.Context, input LogoutUserInput) error {
 	if input.UserID == "" {
 		return ErrUserIdNotFound
 	}
 
-	if err := uc.tokenStorage.RevokeAllUserSessions(input.UserID); err != nil {
+	if input.Token == "" {
+		return ErrInvalidRefreshToken
+	}
+
+	if err := uc.tokenStorage.RevokeCurrentUserSession(ctx, input.UserID, input.Token); err != nil {
 		return fmt.Errorf("failed to revoke user session: %w", err)
 	}
 

@@ -2,7 +2,6 @@ package domain
 
 import (
 	"authorization/internal/domain/security"
-	"errors"
 	"regexp"
 	"strings"
 )
@@ -10,29 +9,16 @@ import (
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 var phoneRegex = regexp.MustCompile(`^\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}$`)
 
-var (
-	ErrInvalidEmail     = errors.New("invalid email format")
-	ErrEmptyEmail       = errors.New("email can not be empty")
-	ErrEmptyPassword    = errors.New("password cannot be empty")
-	ErrEmptyName        = errors.New("name cannot be empty")
-	ErrEmptySurname     = errors.New("surname cannot be empty")
-	ErrInvalidPhone     = errors.New("invalid phone format")
-	ErrPermissionDenied = errors.New("permission denied")
-	ErrUnableToSetAdmin = errors.New("unable to set admin role")
-	ErrUnchangedRole    = errors.New("role didn't change")
-	ErrUserDiactivated  = errors.New("profile deleted")
-)
-
 type User struct {
-	ID           string `json:"id" db:"id"`
-	Email        string `json:"email" db:"email"`
-	PasswordHash string `json:"passwordHash" db:"password_hash"`
-	Name         string `json:"name" db:"name"`
-	Surname      string `json:"surname" db:"surname"`
-	Phone        string `json:"phone" db:"phone"`
-	Role         Role   `json:"role" db:"role"`
-	IsVerified   bool   `json:"isVerified" db:"is_verified"`
-	IsActive     bool   `json:"isActive" db:"is_active"`
+	ID           string
+	Email        string
+	PasswordHash string
+	Name         string
+	Surname      string
+	Phone        string
+	Role         Role
+	IsVerified   bool
+	IsActive     bool
 }
 
 func IsEmailValid(e string) bool {
@@ -47,7 +33,7 @@ func IsPasswordNotEmpty(p string) bool {
 }
 
 func IsNameCorrect(n string) bool {
-	return len(n) > 3
+	return len(n) > 1
 }
 
 func IsPhoneValid(p string) bool {
@@ -58,17 +44,20 @@ func NewUser(email, passwordHash, name, surname, phone string) (*User, error) {
 	if !IsEmailValid(email) {
 		return nil, ErrInvalidEmail
 	}
-
-	if !IsNameCorrect(name) {
+	trimmedName := strings.TrimSpace(name)
+	if !IsNameCorrect(trimmedName) {
 		return nil, ErrEmptyName
 	}
+
+	trimmedSurname := strings.TrimSpace(surname)
 
 	passwordHash = strings.TrimSpace(passwordHash)
 	if !IsPasswordNotEmpty(passwordHash) {
 		return nil, ErrEmptyPassword
 	}
 
-	if !IsPhoneValid(phone) {
+	trimmedPhone := strings.TrimSpace(phone)
+	if !IsPhoneValid(trimmedPhone) {
 		return nil, ErrInvalidPhone
 	}
 
@@ -76,9 +65,9 @@ func NewUser(email, passwordHash, name, surname, phone string) (*User, error) {
 		ID:           security.GenerateUUID(),
 		Email:        email,
 		PasswordHash: passwordHash,
-		Name:         name,
-		Surname:      surname,
-		Phone:        phone,
+		Name:         trimmedName,
+		Surname:      trimmedSurname,
+		Phone:        trimmedPhone,
 		Role:         1,
 		IsVerified:   false,
 		IsActive:     true,
@@ -101,7 +90,7 @@ func (u *User) UpdateUser(name, surname, phone string) error {
 
 	u.Name = trimmedName
 	u.Surname = trimmedSurname
-	u.Phone = phone
+	u.Phone = trimmedPhone
 
 	return nil
 }
@@ -161,7 +150,7 @@ func (u *User) SetRole(role Role) error {
 
 func (u *User) EnsureActive() error {
 	if !u.IsActive {
-		return ErrUserDiactivated
+		return ErrUserDeactivated
 	}
 
 	return nil
@@ -169,4 +158,8 @@ func (u *User) EnsureActive() error {
 
 func (u *User) Deactivate() {
 	u.IsActive = false
+}
+
+func (u *User) VerifyEmail() {
+	u.IsVerified = true
 }
