@@ -23,4 +23,5 @@ var (
 	ErrWrongVerificationToken      = errors.New("wrong verification token")
 	ErrUserActivationFail          = errors.New("user activation failed")
 	ErrVerificationTokenDeleteFail = errors.New("failed to delete verification token")
+	ErrEmailAlreadyVerified        = errors.New("email already verified")
 )
