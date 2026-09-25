@@ -70,7 +70,7 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput)
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 
-	token, err := security.GenerateEmailVerificationToken()
+	token, err := security.GenerateUserDataUpdateToken()
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrTokenGenerationFailed, err)
 	}

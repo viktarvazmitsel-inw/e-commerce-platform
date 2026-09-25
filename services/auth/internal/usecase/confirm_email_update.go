@@ -12,13 +12,13 @@ type ConfirmEmailUpdateInput struct {
 
 type ConfirmEmailUpdateUseCase struct {
 	repo                UserRepository
-	emailTokenStorage   EmailUpdateTokenRepository
+	emailTokenStorage   UserDataUpdateTokenRepository
 	sessionTokenStorage SessionRepository
 }
 
 func NewConfirmEmailUpdateUseCase(
 	r UserRepository,
-	es EmailUpdateTokenRepository,
+	es UserDataUpdateTokenRepository,
 	ss SessionRepository,
 ) *ConfirmEmailUpdateUseCase {
 	return &ConfirmEmailUpdateUseCase{
@@ -62,7 +62,7 @@ func (uc *ConfirmEmailUpdateUseCase) Execute(ctx context.Context, input ConfirmE
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 
-	if err := uc.emailTokenStorage.DeleteEmailUpdateToken(ctx, input.Token); err != nil {
+	if err := uc.emailTokenStorage.DeleteUserDataUpdateToken(ctx, input.Token); err != nil {
 		return fmt.Errorf("failed to delete email update token: %w", err)
 	}
 

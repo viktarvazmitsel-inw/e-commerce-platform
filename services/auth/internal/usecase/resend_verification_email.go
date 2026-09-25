@@ -60,7 +60,7 @@ func (uc *ResendVerificationEmailUseCase) Execute(
 		return ErrEmailAlreadyVerified
 	}
 
-	token, err := security.GenerateEmailVerificationToken()
+	token, err := security.GenerateUserDataUpdateToken()
 	if err != nil {
 		return err
 	}

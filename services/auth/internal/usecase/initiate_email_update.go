@@ -14,19 +14,20 @@ type EmailUpdateInput struct {
 	ID       string
 	Password string
 	NewEmail string
+	TokenTTL time.Duration
 }
 
 type InitiateEmailUpdateUseCase struct {
 	repo           UserRepository
 	mail           EmailSender
-	tokenStorage   EmailUpdateTokenRepository
+	tokenStorage   UserDataUpdateTokenRepository
 	passwordHasher PasswordHasher
 }
 
 func NewInitiateEmailUpdateUseCase(
 	r UserRepository,
 	m EmailSender,
-	s EmailUpdateTokenRepository,
+	s UserDataUpdateTokenRepository,
 	h PasswordHasher,
 ) *InitiateEmailUpdateUseCase {
 	return &InitiateEmailUpdateUseCase{
@@ -77,12 +78,12 @@ func (uc *InitiateEmailUpdateUseCase) Execute(ctx context.Context, input EmailUp
 		return ErrEmailAlreadyTaken
 	}
 
-	token, err := security.GenerateEmailVerificationToken()
+	token, err := security.GenerateUserDataUpdateToken()
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrTokenGenerationFailed, err)
 	}
 
-	if err := uc.tokenStorage.SaveEmailUpdateToken(ctx, userEntity.ID, trimmedNewEmail, token, time.Hour); err != nil {
+	if err := uc.tokenStorage.SaveEmailUpdateToken(ctx, userEntity.ID, trimmedNewEmail, token, input.TokenTTL); err != nil {
 		return fmt.Errorf("%w: %v", ErrVerificationTokenSaveFailed, err)
 	}
 

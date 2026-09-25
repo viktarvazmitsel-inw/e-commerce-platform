@@ -11,6 +11,10 @@ type EmailUpdateTokenData struct {
 	NewEmail string `json:"new_email"`
 }
 
+type PasswordResetTokenData struct {
+	UserID string `json:"user_id"`
+}
+
 type UserInfoTokenData struct {
 	UserID string      `json:"user_id"`
 	Role   domain.Role `json:"role"`
@@ -38,10 +42,12 @@ type VerificationTokenRepository interface {
 	DeleteVerificationToken(ctx context.Context, token string) error
 }
 
-type EmailUpdateTokenRepository interface {
+type UserDataUpdateTokenRepository interface {
 	SaveEmailUpdateToken(ctx context.Context, userID, newEmail, token string, ttl time.Duration) error
 	LoadEmailUpdateToken(ctx context.Context, token string) (*EmailUpdateTokenData, error)
-	DeleteEmailUpdateToken(ctx context.Context, token string) error
+	SavePasswordResetToken(ctx context.Context, userID, token string, ttl time.Duration) error
+	LoadPasswordResetToken(ctx context.Context, token string) (*PasswordResetTokenData, error)
+	DeleteUserDataUpdateToken(ctx context.Context, token string) error
 }
 
 type SessionRepository interface {
@@ -53,5 +59,6 @@ type SessionRepository interface {
 }
 
 type EmailSender interface {
-	SendVerificationEmail(ctx context.Context, email string, token string) error
+	SendVerificationEmail(ctx context.Context, email, token string) error
+	SendPasswordResetEmail(ctx context.Context, email, token string) error
 }
