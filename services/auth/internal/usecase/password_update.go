@@ -17,13 +17,20 @@ type PasswordUpdateUseCase struct {
 	repo           UserRepository
 	tokenStorage   SessionRepository
 	passwordHasher PasswordHasher
+	logger         Logger
 }
 
-func NewPasswordUpdateUseCase(r UserRepository, s SessionRepository, h PasswordHasher) *PasswordUpdateUseCase {
+func NewPasswordUpdateUseCase(
+	r UserRepository,
+	s SessionRepository,
+	h PasswordHasher,
+	l Logger,
+) *PasswordUpdateUseCase {
 	return &PasswordUpdateUseCase{
 		repo:           r,
 		tokenStorage:   s,
 		passwordHasher: h,
+		logger:         l,
 	}
 }
 
@@ -59,7 +66,7 @@ func (uc *PasswordUpdateUseCase) Execute(ctx context.Context, input PasswordUpda
 
 	newPasswordHash, err := uc.passwordHasher.Hash(input.NewPassword)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrPasswordHashFailed, err)
+		return fmt.Errorf("%w: %v", ErrPasswordHashFail, err)
 	}
 
 	if err := userEntity.UpdateUserPassword(newPasswordHash); err != nil {
@@ -71,7 +78,8 @@ func (uc *PasswordUpdateUseCase) Execute(ctx context.Context, input PasswordUpda
 	}
 
 	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, input.UserID); err != nil {
-		return fmt.Errorf("failed to revoke user session: %w", err)
+		uc.logger.Warn(ctx, "failed to revoke user sessions", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	return nil

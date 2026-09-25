@@ -17,6 +17,7 @@ type ConfirmPasswordRecoveryUseCase struct {
 	tokenStorage   UserDataUpdateTokenRepository
 	sessionStorage SessionRepository
 	passwordHasher PasswordHasher
+	logger         Logger
 }
 
 func NewConfirmPasswordRecoveryUseCase(
@@ -24,12 +25,14 @@ func NewConfirmPasswordRecoveryUseCase(
 	ts UserDataUpdateTokenRepository,
 	h PasswordHasher,
 	ss SessionRepository,
+	l Logger,
 ) *ConfirmPasswordRecoveryUseCase {
 	return &ConfirmPasswordRecoveryUseCase{
 		repo:           r,
 		tokenStorage:   ts,
 		passwordHasher: h,
 		sessionStorage: ss,
+		logger:         l,
 	}
 }
 
@@ -66,7 +69,7 @@ func (uc *ConfirmPasswordRecoveryUseCase) Execute(ctx context.Context, input Con
 
 	newPasswordHash, err := uc.passwordHasher.Hash(input.NewPassword)
 	if err != nil {
-		return ErrPasswordHashFailed
+		return ErrPasswordHashFail
 	}
 
 	if err := userEntity.UpdateUserPassword(newPasswordHash); err != nil {
@@ -78,11 +81,13 @@ func (uc *ConfirmPasswordRecoveryUseCase) Execute(ctx context.Context, input Con
 	}
 
 	if err := uc.tokenStorage.DeleteUserDataUpdateToken(ctx, input.Token); err != nil {
-		return fmt.Errorf("failed to delete password recovery token: %w", err)
+		uc.logger.Warn(ctx, "failed to delete password recovery token", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	if err := uc.sessionStorage.RevokeAllUserSessions(ctx, userEntity.ID); err != nil {
-		return fmt.Errorf("failed to revoke user session: %w", err)
+		uc.logger.Warn(ctx, "failed to revoke user sessions", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	return nil

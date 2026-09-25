@@ -12,12 +12,14 @@ type VerificationInput struct {
 type VerifyUserUseCase struct {
 	repo         UserRepository
 	tokenStorage VerificationTokenRepository
+	logger       Logger
 }
 
-func NewVerifyUserUseCase(r UserRepository, s VerificationTokenRepository) *VerifyUserUseCase {
+func NewVerifyUserUseCase(r UserRepository, s VerificationTokenRepository, l Logger) *VerifyUserUseCase {
 	return &VerifyUserUseCase{
 		repo:         r,
 		tokenStorage: s,
+		logger:       l,
 	}
 }
 
@@ -41,7 +43,8 @@ func (uc *VerifyUserUseCase) Execute(ctx context.Context, input VerificationInpu
 	}
 
 	if err := uc.tokenStorage.DeleteVerificationToken(ctx, userToken); err != nil {
-		return ErrVerificationTokenDeleteFail
+		uc.logger.Warn(ctx, "failed to delete email verification token", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	return nil

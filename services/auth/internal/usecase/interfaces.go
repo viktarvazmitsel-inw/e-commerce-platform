@@ -19,6 +19,11 @@ type UserInfoTokenData struct {
 	Role   domain.Role `json:"role"`
 }
 
+type Logger interface {
+	Warn(ctx context.Context, msg string, keysAndValues ...any)
+	Error(ctx context.Context, msg string, keysAndValues ...any)
+}
+
 type PasswordHasher interface {
 	Hash(password string) (string, error)
 	Compare(password, hash string) bool

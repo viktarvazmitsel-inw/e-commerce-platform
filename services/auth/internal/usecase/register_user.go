@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 )
 
 type RegisterInput struct {
@@ -22,6 +21,7 @@ type RegisterUserUseCase struct {
 	mail           EmailSender
 	tokenStorage   VerificationTokenRepository
 	passwordHasher PasswordHasher
+	logger         Logger
 }
 
 func NewRegisterUserUseCase(
@@ -29,13 +29,14 @@ func NewRegisterUserUseCase(
 	m EmailSender,
 	s VerificationTokenRepository,
 	h PasswordHasher,
-	ttl time.Duration,
+	l Logger,
 ) *RegisterUserUseCase {
 	return &RegisterUserUseCase{
 		repo:           r,
 		mail:           m,
 		tokenStorage:   s,
 		passwordHasher: h,
+		logger:         l,
 	}
 }
 
@@ -46,7 +47,7 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput)
 
 	passwordHash, err := uc.passwordHasher.Hash(input.Password)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrPasswordHashFailed, err)
+		return fmt.Errorf("%w: %v", ErrPasswordHashFail, err)
 	}
 
 	isTaken, err := uc.repo.IsEmailTaken(ctx, input.Email)
@@ -67,20 +68,22 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput)
 		if errors.Is(err, ErrEmailAlreadyTaken) {
 			return ErrEmailAlreadyTaken
 		}
-		return fmt.Errorf("unable to save user: %w", err)
+		return fmt.Errorf("failed to save user: %w", err)
 	}
 
 	token, err := security.GenerateUserDataUpdateToken()
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrTokenGenerationFailed, err)
+		uc.logger.Warn(ctx, "failed to generate email verification token", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	if err := uc.tokenStorage.SaveVerificationToken(ctx, userEntity.ID, token); err != nil {
-		return fmt.Errorf("%w: %v", ErrVerificationTokenSaveFailed, err)
+		return fmt.Errorf("failed to save email verification token: %w", err)
 	}
 
 	if err := uc.mail.SendVerificationEmail(ctx, userEntity.Email, token); err != nil {
-		return fmt.Errorf("%w: %v", ErrVerificationEmailSendFailed, err)
+		uc.logger.Warn(ctx, "failed to send verification email to user", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	return nil

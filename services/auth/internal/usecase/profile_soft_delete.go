@@ -15,13 +15,20 @@ type SoftDeleteProfileUseCase struct {
 	repo           UserRepository
 	tokenStorage   SessionRepository
 	passwordHasher PasswordHasher
+	logger         Logger
 }
 
-func NewSoftDeleteProfileUseCase(r UserRepository, s SessionRepository, h PasswordHasher) *SoftDeleteProfileUseCase {
+func NewSoftDeleteProfileUseCase(
+	r UserRepository,
+	s SessionRepository,
+	h PasswordHasher,
+	l Logger,
+) *SoftDeleteProfileUseCase {
 	return &SoftDeleteProfileUseCase{
 		repo:           r,
 		tokenStorage:   s,
 		passwordHasher: h,
+		logger:         l,
 	}
 }
 
@@ -54,7 +61,8 @@ func (uc *SoftDeleteProfileUseCase) Execute(ctx context.Context, input SoftDelet
 	}
 
 	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, userEntity.ID); err != nil {
-		return fmt.Errorf("failed to revoke user session: %w", err)
+		uc.logger.Warn(ctx, "failed to revoke user session", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	return nil

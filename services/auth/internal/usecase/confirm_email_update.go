@@ -14,17 +14,20 @@ type ConfirmEmailUpdateUseCase struct {
 	repo                UserRepository
 	emailTokenStorage   UserDataUpdateTokenRepository
 	sessionTokenStorage SessionRepository
+	logger              Logger
 }
 
 func NewConfirmEmailUpdateUseCase(
 	r UserRepository,
 	es UserDataUpdateTokenRepository,
 	ss SessionRepository,
+	l Logger,
 ) *ConfirmEmailUpdateUseCase {
 	return &ConfirmEmailUpdateUseCase{
 		repo:                r,
 		emailTokenStorage:   es,
 		sessionTokenStorage: ss,
+		logger:              l,
 	}
 }
 
@@ -51,23 +54,26 @@ func (uc *ConfirmEmailUpdateUseCase) Execute(ctx context.Context, input ConfirmE
 	}
 
 	if err := userEntity.UpdateUserEmail(tokenData.NewEmail); err != nil {
+		return err
+	}
+
+	userEntity.VerifyEmail()
+
+	if err := uc.repo.Save(ctx, userEntity); err != nil {
 		if errors.Is(err, ErrEmailAlreadyTaken) {
 			return ErrEmailAlreadyTaken
 		}
-
-		return fmt.Errorf("unable to save user: %w", err)
-	}
-
-	if err := uc.repo.Save(ctx, userEntity); err != nil {
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 
 	if err := uc.emailTokenStorage.DeleteUserDataUpdateToken(ctx, input.Token); err != nil {
-		return fmt.Errorf("failed to delete email update token: %w", err)
+		uc.logger.Warn(ctx, "unable to delete update email token", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	if err := uc.sessionTokenStorage.RevokeAllUserSessions(ctx, tokenData.UserID); err != nil {
-		return fmt.Errorf("failed to revoke user session: %w", err)
+		uc.logger.Warn(ctx, "failed to revoke user session", "userID", userEntity.ID, "error", err)
+		return nil
 	}
 
 	return nil

@@ -5,11 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
+	"strings"
 )
 
 type ResendVerificationEmailInput struct {
-	UserID   string
+	Email    string
 	Password string
 }
 
@@ -25,7 +25,6 @@ func NewResendVerificationEmailUseCase(
 	r UserRepository,
 	h PasswordHasher,
 	m EmailSender,
-	ttl time.Duration,
 ) *ResendVerificationEmailUseCase {
 	return &ResendVerificationEmailUseCase{
 		emailTokenStorage: s,
@@ -39,13 +38,14 @@ func (uc *ResendVerificationEmailUseCase) Execute(
 	ctx context.Context,
 	input ResendVerificationEmailInput,
 ) error {
-	if input.UserID == "" {
-		return ErrUserIdNotFound
+	trimmedEmail := strings.TrimSpace(input.Email)
+	if trimmedEmail == "" {
+		return ErrEmptyEmail
 	}
 
-	userEntity, err := uc.repo.GetUserByID(ctx, input.UserID)
+	userEntity, err := uc.repo.GetUserByEmail(ctx, trimmedEmail)
 	if err != nil {
-		return ErrUserIdNotFound
+		return ErrUserEmailNotFound
 	}
 
 	if !uc.passwordHasher.Compare(input.Password, userEntity.PasswordHash) {
@@ -65,16 +65,16 @@ func (uc *ResendVerificationEmailUseCase) Execute(
 		return err
 	}
 
-	if err := uc.emailTokenStorage.SaveVerificationToken(ctx, input.UserID, token); err != nil {
-		if errors.Is(err, ErrVerificationTokenSaveFailed) {
-			return ErrVerificationTokenSaveFailed
+	if err := uc.emailTokenStorage.SaveVerificationToken(ctx, userEntity.ID, token); err != nil {
+		if errors.Is(err, ErrVerificationTokenSaveFail) {
+			return ErrVerificationTokenSaveFail
 		}
 
 		return fmt.Errorf("unable to save verification token: %w", err)
 	}
 
 	if err := uc.mail.SendVerificationEmail(ctx, userEntity.Email, token); err != nil {
-		return fmt.Errorf("failed to send verification email: %w", ErrVerificationEmailSendFailed)
+		return fmt.Errorf("failed to send verification email: %w", err)
 	}
 
 	return nil

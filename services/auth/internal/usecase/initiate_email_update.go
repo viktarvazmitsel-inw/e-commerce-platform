@@ -78,17 +78,22 @@ func (uc *InitiateEmailUpdateUseCase) Execute(ctx context.Context, input EmailUp
 
 	token, err := security.GenerateUserDataUpdateToken()
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrTokenGenerationFailed, err)
+		return ErrTokenGenerationFail
 	}
 
-	if err := uc.tokenStorage.SaveEmailUpdateToken(ctx, userEntity.ID, trimmedNewEmail, token); err != nil {
-		return fmt.Errorf("%w: %v", ErrVerificationTokenSaveFailed, err)
+	hashedToken := security.HashToken(token)
+
+	if err := uc.tokenStorage.SaveEmailUpdateToken(ctx, userEntity.ID, trimmedNewEmail, hashedToken); err != nil {
+		if errors.Is(err, ErrVerificationTokenSaveFail) {
+			return ErrVerificationTokenSaveFail
+		}
+
+		return fmt.Errorf("failed to save email update token: %w", err)
 	}
 
 	if err := uc.mail.SendVerificationEmail(ctx, trimmedNewEmail, token); err != nil {
-		return fmt.Errorf("%w: %v", ErrVerificationEmailSendFailed, err)
+		return ErrVerificationEmailSendFail
 	}
 
 	return nil
-
 }

@@ -3,7 +3,9 @@ package usecase
 import (
 	"authorization/internal/domain"
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 )
 
 type LoginInput struct {
@@ -33,7 +35,9 @@ func NewLoginUserUseCase(
 }
 
 func (uc *LoginUserUseCase) Execute(ctx context.Context, input LoginInput) (domain.TokenPair, error) {
-	userEntity, err := uc.repo.GetUserByEmail(ctx, input.Email)
+	trimmedEmail := strings.TrimSpace(input.Email)
+
+	userEntity, err := uc.repo.GetUserByEmail(ctx, trimmedEmail)
 	if err != nil {
 		return domain.TokenPair{}, ErrInvalidCredentials
 	}
@@ -52,11 +56,15 @@ func (uc *LoginUserUseCase) Execute(ctx context.Context, input LoginInput) (doma
 
 	tokens, err := uc.tokenGenerator.GenerateTokens(ctx, userEntity.ID, userEntity.Role)
 	if err != nil {
-		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenPairGenerationFail, err)
+		return domain.TokenPair{}, ErrTokenPairGenerationFail
 	}
 
 	if err := uc.tokenStorage.SaveTokenPair(ctx, userEntity.ID, tokens); err != nil {
-		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenPairSaveFail, err)
+		if errors.Is(err, ErrTokenPairSaveFail) {
+			return domain.TokenPair{}, ErrTokenPairSaveFail
+		}
+
+		return domain.TokenPair{}, fmt.Errorf("failed to save token pair to token storage: %w", err)
 	}
 
 	return tokens, nil
