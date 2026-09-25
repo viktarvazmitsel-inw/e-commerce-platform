@@ -15,7 +15,6 @@ type RegisterInput struct {
 	Name     string
 	Surname  string
 	Phone    string
-	TokenTTL time.Duration
 }
 
 type RegisterUserUseCase struct {
@@ -30,6 +29,7 @@ func NewRegisterUserUseCase(
 	m EmailSender,
 	s VerificationTokenRepository,
 	h PasswordHasher,
+	ttl time.Duration,
 ) *RegisterUserUseCase {
 	return &RegisterUserUseCase{
 		repo:           r,
@@ -75,7 +75,7 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput)
 		return fmt.Errorf("%w: %v", ErrTokenGenerationFailed, err)
 	}
 
-	if err := uc.tokenStorage.SaveVerificationToken(ctx, userEntity.ID, token, input.TokenTTL); err != nil {
+	if err := uc.tokenStorage.SaveVerificationToken(ctx, userEntity.ID, token); err != nil {
 		return fmt.Errorf("%w: %v", ErrVerificationTokenSaveFailed, err)
 	}
 

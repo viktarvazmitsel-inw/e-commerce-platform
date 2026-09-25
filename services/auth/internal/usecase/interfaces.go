@@ -3,7 +3,6 @@ package usecase
 import (
 	"authorization/internal/domain"
 	"context"
-	"time"
 )
 
 type EmailUpdateTokenData struct {
@@ -37,15 +36,15 @@ type UserRepository interface {
 }
 
 type VerificationTokenRepository interface {
-	SaveVerificationToken(ctx context.Context, userID, token string, ttl time.Duration) error
+	SaveVerificationToken(ctx context.Context, userID, token string) error
 	LoadVerificationToken(ctx context.Context, token string) (string, error)
 	DeleteVerificationToken(ctx context.Context, token string) error
 }
 
 type UserDataUpdateTokenRepository interface {
-	SaveEmailUpdateToken(ctx context.Context, userID, newEmail, token string, ttl time.Duration) error
+	SaveEmailUpdateToken(ctx context.Context, userID, newEmail, token string) error
 	LoadEmailUpdateToken(ctx context.Context, token string) (*EmailUpdateTokenData, error)
-	SavePasswordResetToken(ctx context.Context, userID, token string, ttl time.Duration) error
+	SavePasswordResetToken(ctx context.Context, userID, token string) error
 	LoadPasswordResetToken(ctx context.Context, token string) (*PasswordResetTokenData, error)
 	DeleteUserDataUpdateToken(ctx context.Context, token string) error
 }

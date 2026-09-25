@@ -7,14 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 )
 
 type EmailUpdateInput struct {
 	ID       string
 	Password string
 	NewEmail string
-	TokenTTL time.Duration
 }
 
 type InitiateEmailUpdateUseCase struct {
@@ -83,7 +81,7 @@ func (uc *InitiateEmailUpdateUseCase) Execute(ctx context.Context, input EmailUp
 		return fmt.Errorf("%w: %v", ErrTokenGenerationFailed, err)
 	}
 
-	if err := uc.tokenStorage.SaveEmailUpdateToken(ctx, userEntity.ID, trimmedNewEmail, token, input.TokenTTL); err != nil {
+	if err := uc.tokenStorage.SaveEmailUpdateToken(ctx, userEntity.ID, trimmedNewEmail, token); err != nil {
 		return fmt.Errorf("%w: %v", ErrVerificationTokenSaveFailed, err)
 	}
 

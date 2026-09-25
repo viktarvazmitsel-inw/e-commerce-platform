@@ -11,7 +11,6 @@ import (
 
 type InitiatePasswordRecoveryInput struct {
 	UserEmail string
-	TokenTTL  time.Duration
 }
 
 type InitiatePasswordRecoveryUseCase struct {
@@ -24,6 +23,7 @@ func NewInitiatePasswordRecoveryUseCase(
 	r UserRepository,
 	s UserDataUpdateTokenRepository,
 	m EmailSender,
+	ttl time.Duration,
 ) *InitiatePasswordRecoveryUseCase {
 	return &InitiatePasswordRecoveryUseCase{
 		repo:         r,
@@ -56,7 +56,7 @@ func (uc *InitiatePasswordRecoveryUseCase) Execute(ctx context.Context, input In
 		return ErrTokenGenerationFailed
 	}
 
-	if err := uc.tokenStorage.SavePasswordResetToken(ctx, userEntity.ID, resetToken, input.TokenTTL); err != nil {
+	if err := uc.tokenStorage.SavePasswordResetToken(ctx, userEntity.ID, resetToken); err != nil {
 		return fmt.Errorf("failed to save password reset token: %w", err)
 	}
 

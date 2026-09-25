@@ -11,7 +11,6 @@ import (
 type ResendVerificationEmailInput struct {
 	UserID   string
 	Password string
-	tokenTTL time.Duration
 }
 
 type ResendVerificationEmailUseCase struct {
@@ -26,6 +25,7 @@ func NewResendVerificationEmailUseCase(
 	r UserRepository,
 	h PasswordHasher,
 	m EmailSender,
+	ttl time.Duration,
 ) *ResendVerificationEmailUseCase {
 	return &ResendVerificationEmailUseCase{
 		emailTokenStorage: s,
@@ -65,7 +65,7 @@ func (uc *ResendVerificationEmailUseCase) Execute(
 		return err
 	}
 
-	if err := uc.emailTokenStorage.SaveVerificationToken(ctx, input.UserID, token, input.tokenTTL); err != nil {
+	if err := uc.emailTokenStorage.SaveVerificationToken(ctx, input.UserID, token); err != nil {
 		if errors.Is(err, ErrVerificationTokenSaveFailed) {
 			return ErrVerificationTokenSaveFailed
 		}
