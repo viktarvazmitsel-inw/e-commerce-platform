@@ -46,7 +46,7 @@ func (uc *InitiatePasswordRecoveryUseCase) Execute(ctx context.Context, input In
 	}
 
 	if err := userEntity.EnsureActive(); err != nil {
-		return nil
+		return err
 	}
 
 	resetToken, err := security.GenerateUserDataUpdateToken()

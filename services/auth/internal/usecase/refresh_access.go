@@ -4,6 +4,7 @@ import (
 	"authorization/internal/domain"
 	"context"
 	"fmt"
+	"time"
 )
 
 type RefreshTokenInput struct {
@@ -31,6 +32,15 @@ func (uc *RefreshAccessUseCase) Execute(ctx context.Context, input RefreshTokenI
 
 	userData, err := uc.tokenStorage.GetUserInfoByRefreshToken(ctx, input.Token)
 	if err != nil {
+		return domain.TokenPair{}, ErrInvalidRefreshToken
+	}
+
+	refreshTokenExpireTime, err := uc.tokenStorage.GetRefreshTokenExpireTime(ctx, input.Token)
+	if err != nil {
+		return domain.TokenPair{}, ErrInvalidRefreshToken
+	}
+
+	if time.Now().Unix() >= refreshTokenExpireTime {
 		return domain.TokenPair{}, ErrInvalidRefreshToken
 	}
 

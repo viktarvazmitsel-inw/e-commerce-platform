@@ -60,6 +60,7 @@ type SessionRepository interface {
 	UnsetAndSaveTokenPair(ctx context.Context, token, userId string, pair domain.TokenPair) error
 	RevokeAllUserSessions(ctx context.Context, userID string) error
 	RevokeCurrentUserSession(ctx context.Context, userID, token string) error
+	GetRefreshTokenExpireTime(ctx context.Context, token string) (int64, error)
 }
 
 type EmailSender interface {
