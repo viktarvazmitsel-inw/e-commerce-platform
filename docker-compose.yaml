@@ -53,7 +53,16 @@ services:
       POSTGRES_DB: shop_auth_db
     networks:
       - auth
-
+  auth-cache:
+    container_name: shop-auth-cache
+    image: redis:8.10
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${AUTH_REDIS_PASSWORD}
+    networks:
+      - auth
   note-back:
     container_name: shop-note-back
     build:
