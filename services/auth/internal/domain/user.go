@@ -134,8 +134,12 @@ func (u *User) RequirePermission(permission Permission) error {
 	return nil
 }
 
+func (u *User) HasRole(requiredRole Role) bool {
+	return (u.Role & requiredRole) == requiredRole
+}
+
 func (u *User) SetRole(role Role) error {
-	if role == RoleAdmin {
+	if !u.HasRole(RoleAdmin) {
 		return ErrUnableToSetAdmin
 	}
 

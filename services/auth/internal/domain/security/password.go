@@ -1,25 +1,12 @@
 package security
 
-import (
-	"unicode"
-)
+import "regexp"
+
+var passwordPattern = regexp.MustCompile(`^[A-Za-z0-9!@#$%^&*()-+]+$`)
 
 func IsPasswordStrong(p string) bool {
-	if len(p) < 8 {
+	if len(p) < 8 || len(p) > 20 {
 		return false
 	}
-	var hasUpper, hasLower, hasDigit, hasSpecial bool
-	for _, r := range p {
-		switch {
-		case unicode.IsUpper(r):
-			hasUpper = true
-		case unicode.IsLower(r):
-			hasLower = true
-		case unicode.IsDigit(r):
-			hasDigit = true
-		case unicode.IsPunct(r) || unicode.IsSymbol(r):
-			hasSpecial = true
-		}
-	}
-	return hasUpper && hasLower && hasDigit && hasSpecial
+	return passwordPattern.MatchString(p)
 }

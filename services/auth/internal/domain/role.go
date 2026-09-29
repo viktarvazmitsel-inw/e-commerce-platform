@@ -1,11 +1,11 @@
 package domain
 
-type Role int
+type Role uint8
 
 const (
-	RoleClient  Role = 1
-	RoleAnalyst Role = 2
-	RoleAdmin   Role = 3
+	RoleClient Role = 1 << iota
+	RoleAnalyst
+	RoleAdmin
 )
 
 type Permission string
