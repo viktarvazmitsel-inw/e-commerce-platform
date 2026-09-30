@@ -35,6 +35,7 @@ type TokenGenerator interface {
 
 type UserRepository interface {
 	IsEmailTaken(ctx context.Context, email string) (bool, error)
+	Create(ctx context.Context, user *domain.User) error
 	Save(ctx context.Context, user *domain.User) error
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetUserByID(ctx context.Context, ID string) (*domain.User, error)

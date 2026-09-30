@@ -64,7 +64,7 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput)
 		return err
 	}
 
-	if err := uc.repo.Save(ctx, userEntity); err != nil {
+	if err := uc.repo.Create(ctx, userEntity); err != nil {
 		if errors.Is(err, ErrEmailAlreadyTaken) {
 			return ErrEmailAlreadyTaken
 		}
