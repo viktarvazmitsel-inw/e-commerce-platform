@@ -22,7 +22,7 @@ var rolePermission = map[Role][]Permission{
 
 func (r Role) HasPermission(p Permission) bool {
 	for role, perms := range rolePermission {
-		if r&role != r {
+		if r&role != role {
 			continue
 		}
 
