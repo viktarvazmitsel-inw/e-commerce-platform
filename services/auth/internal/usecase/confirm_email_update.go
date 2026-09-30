@@ -68,7 +68,6 @@ func (uc *ConfirmEmailUpdateUseCase) Execute(ctx context.Context, input ConfirmE
 
 	if err := uc.emailTokenStorage.DeleteUserDataUpdateToken(ctx, input.Token); err != nil {
 		uc.logger.Warn(ctx, "unable to delete update email token", "userID", userEntity.ID, "error", err)
-		return nil
 	}
 
 	if err := uc.sessionTokenStorage.RevokeAllUserSessions(ctx, tokenData.UserID); err != nil {

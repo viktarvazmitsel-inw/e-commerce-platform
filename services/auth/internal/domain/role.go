@@ -21,15 +21,15 @@ var rolePermission = map[Role][]Permission{
 }
 
 func (r Role) HasPermission(p Permission) bool {
-	perms, exists := rolePermission[r]
+	for role, perms := range rolePermission {
+		if r&role != r {
+			continue
+		}
 
-	if !exists {
-		return false
-	}
-
-	for _, perm := range perms {
-		if perm == p {
-			return true
+		for _, perm := range perms {
+			if perm == p {
+				return true
+			}
 		}
 	}
 

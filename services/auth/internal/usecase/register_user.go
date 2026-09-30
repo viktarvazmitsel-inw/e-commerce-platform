@@ -77,7 +77,9 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput)
 		return nil
 	}
 
-	if err := uc.tokenStorage.SaveVerificationToken(ctx, userEntity.ID, token); err != nil {
+	hashedResetToken := security.HashToken(token)
+
+	if err := uc.tokenStorage.SaveVerificationToken(ctx, userEntity.ID, hashedResetToken); err != nil {
 		return fmt.Errorf("failed to save email verification token: %w", err)
 	}
 

@@ -45,7 +45,9 @@ func (uc *ConfirmPasswordRecoveryUseCase) Execute(ctx context.Context, input Con
 		return ErrPasswordIsNotStrongEnough
 	}
 
-	userData, err := uc.tokenStorage.LoadPasswordResetToken(ctx, input.Token)
+	hashedResetToken := security.HashToken(input.Token)
+
+	userData, err := uc.tokenStorage.LoadPasswordResetToken(ctx, hashedResetToken)
 	if err != nil {
 		return ErrInvalidPasswordRecoveryToken
 	}
@@ -80,9 +82,8 @@ func (uc *ConfirmPasswordRecoveryUseCase) Execute(ctx context.Context, input Con
 		return fmt.Errorf("unable to save user: %w", err)
 	}
 
-	if err := uc.tokenStorage.DeleteUserDataUpdateToken(ctx, input.Token); err != nil {
+	if err := uc.tokenStorage.DeleteUserDataUpdateToken(ctx, hashedResetToken); err != nil {
 		uc.logger.Warn(ctx, "failed to delete password recovery token", "userID", userEntity.ID, "error", err)
-		return nil
 	}
 
 	if err := uc.sessionStorage.RevokeAllUserSessions(ctx, userEntity.ID); err != nil {

@@ -44,6 +44,10 @@ func (uc *SwitchUserRoleUseCase) Execute(ctx context.Context, input SwitchUserRo
 		return fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
+	if err := authorUser.EnsureActive(); err != nil {
+		return err
+	}
+
 	if err := authorUser.RequirePermission(domain.PermissionChangeRole); err != nil {
 		return err
 	}

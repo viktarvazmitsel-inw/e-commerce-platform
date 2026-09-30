@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"authorization/internal/domain/security"
 	"context"
 	"fmt"
 )
@@ -26,7 +27,9 @@ func NewVerifyUserUseCase(r UserRepository, s VerificationTokenRepository, l Log
 func (uc *VerifyUserUseCase) Execute(ctx context.Context, input VerificationInput) error {
 	userToken := input.Token
 
-	userID, err := uc.tokenStorage.LoadVerificationToken(ctx, userToken)
+	hashedResetToken := security.HashToken(userToken)
+
+	userID, err := uc.tokenStorage.LoadVerificationToken(ctx, hashedResetToken)
 	if err != nil {
 		return ErrWrongVerificationToken
 	}
@@ -36,13 +39,17 @@ func (uc *VerifyUserUseCase) Execute(ctx context.Context, input VerificationInpu
 		return ErrUserIdNotFound
 	}
 
+	if err := userEntity.EnsureActive(); err != nil {
+		return err
+	}
+
 	userEntity.VerifyEmail()
 
 	if err := uc.repo.Save(ctx, userEntity); err != nil {
 		return fmt.Errorf("failed to save user: %w", err)
 	}
 
-	if err := uc.tokenStorage.DeleteVerificationToken(ctx, userToken); err != nil {
+	if err := uc.tokenStorage.DeleteVerificationToken(ctx, hashedResetToken); err != nil {
 		uc.logger.Warn(ctx, "failed to delete email verification token", "userID", userEntity.ID, "error", err)
 		return nil
 	}

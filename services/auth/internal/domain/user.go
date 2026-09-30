@@ -139,7 +139,7 @@ func (u *User) HasRole(requiredRole Role) bool {
 }
 
 func (u *User) SetRole(role Role) error {
-	if !u.HasRole(RoleAdmin) {
+	if role&RoleAdmin == RoleAdmin {
 		return ErrUnableToSetAdmin
 	}
 

@@ -45,11 +45,11 @@ func (uc *ResendVerificationEmailUseCase) Execute(
 
 	userEntity, err := uc.repo.GetUserByEmail(ctx, trimmedEmail)
 	if err != nil {
-		return ErrUserEmailNotFound
+		return ErrInvalidCredentials
 	}
 
 	if !uc.passwordHasher.Compare(input.Password, userEntity.PasswordHash) {
-		return ErrInvalidPassword
+		return ErrInvalidCredentials
 	}
 
 	if err := userEntity.EnsureActive(); err != nil {
@@ -65,7 +65,9 @@ func (uc *ResendVerificationEmailUseCase) Execute(
 		return err
 	}
 
-	if err := uc.emailTokenStorage.SaveVerificationToken(ctx, userEntity.ID, token); err != nil {
+	hashedResetToken := security.HashToken(token)
+
+	if err := uc.emailTokenStorage.SaveVerificationToken(ctx, userEntity.ID, hashedResetToken); err != nil {
 		if errors.Is(err, ErrVerificationTokenSaveFail) {
 			return ErrVerificationTokenSaveFail
 		}
