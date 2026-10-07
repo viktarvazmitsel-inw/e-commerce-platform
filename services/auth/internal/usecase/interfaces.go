@@ -19,6 +19,11 @@ type UserInfoTokenData struct {
 	Role   domain.Role `json:"role"`
 }
 
+type UserListRawData struct {
+	Users      []domain.User
+	TotalCount int
+}
+
 type Logger interface {
 	Warn(ctx context.Context, msg string, keysAndValues ...any)
 	Error(ctx context.Context, msg string, keysAndValues ...any)
@@ -39,6 +44,7 @@ type UserRepository interface {
 	Save(ctx context.Context, user *domain.User) error
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetUserByID(ctx context.Context, ID string) (*domain.User, error)
+	GetUserList(ctx context.Context, page, quantity int) (*UserListRawData, error)
 }
 
 type VerificationTokenRepository interface {
@@ -56,9 +62,9 @@ type UserDataUpdateTokenRepository interface {
 }
 
 type SessionRepository interface {
-	SaveTokenPair(ctx context.Context, userID string, pair domain.TokenPair) error
+	SaveTokenPair(ctx context.Context, userInfo *UserInfoTokenData, pair domain.TokenPair) error
 	GetUserInfoByRefreshToken(ctx context.Context, token string) (*UserInfoTokenData, error)
-	UnsetAndSaveTokenPair(ctx context.Context, token, userId string, pair domain.TokenPair) error
+	UnsetAndSaveTokenPair(ctx context.Context, oldToken string, userInfo *UserInfoTokenData, pair domain.TokenPair) error
 	RevokeAllUserSessions(ctx context.Context, userID string) error
 	RevokeCurrentUserSession(ctx context.Context, userID, token string) error
 	GetRefreshTokenExpireTime(ctx context.Context, token string) (int64, error)

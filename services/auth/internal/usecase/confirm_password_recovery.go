@@ -5,11 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type ConfirmPasswordRecoveryInput struct {
 	Token       string
 	NewPassword string
+}
+
+type ConfirmPasswordRecoveryResult struct {
+	UserID         string
+	SessionRevoked bool
 }
 
 type ConfirmPasswordRecoveryUseCase struct {
@@ -36,50 +42,51 @@ func NewConfirmPasswordRecoveryUseCase(
 	}
 }
 
-func (uc *ConfirmPasswordRecoveryUseCase) Execute(ctx context.Context, input ConfirmPasswordRecoveryInput) error {
-	if input.Token == "" {
-		return ErrInvalidPasswordRecoveryToken
+func (uc *ConfirmPasswordRecoveryUseCase) Execute(ctx context.Context, input ConfirmPasswordRecoveryInput) (ConfirmPasswordRecoveryResult, error) {
+	trimmedToken := strings.TrimSpace(input.Token)
+	if trimmedToken == "" {
+		return ConfirmPasswordRecoveryResult{}, ErrInvalidPasswordRecoveryToken
 	}
 
 	if !security.IsPasswordStrong(input.NewPassword) {
-		return ErrPasswordIsNotStrongEnough
+		return ConfirmPasswordRecoveryResult{}, ErrPasswordIsNotStrongEnough
 	}
 
-	hashedResetToken := security.HashToken(input.Token)
+	hashedResetToken := security.HashToken(trimmedToken)
 
 	userData, err := uc.tokenStorage.LoadPasswordResetToken(ctx, hashedResetToken)
 	if err != nil {
-		return ErrInvalidPasswordRecoveryToken
+		return ConfirmPasswordRecoveryResult{}, ErrInvalidPasswordRecoveryToken
 	}
 
 	userEntity, err := uc.repo.GetUserByID(ctx, userData.UserID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
-			return ErrUserIdNotFound
+			return ConfirmPasswordRecoveryResult{}, ErrUserIdNotFound
 		}
 
-		return fmt.Errorf("unable to load user from database: %w", err)
+		return ConfirmPasswordRecoveryResult{}, fmt.Errorf("unable to load user from database: %w", err)
 	}
 
 	if err := userEntity.EnsureActive(); err != nil {
-		return err
+		return ConfirmPasswordRecoveryResult{}, err
 	}
 
 	if uc.passwordHasher.Compare(input.NewPassword, userEntity.PasswordHash) {
-		return ErrSameNewPassword
+		return ConfirmPasswordRecoveryResult{}, ErrSameNewPassword
 	}
 
 	newPasswordHash, err := uc.passwordHasher.Hash(input.NewPassword)
 	if err != nil {
-		return ErrPasswordHashFail
+		return ConfirmPasswordRecoveryResult{}, ErrPasswordHashFail
 	}
 
 	if err := userEntity.UpdateUserPassword(newPasswordHash); err != nil {
-		return err
+		return ConfirmPasswordRecoveryResult{}, err
 	}
 
 	if err := uc.repo.Save(ctx, userEntity); err != nil {
-		return fmt.Errorf("unable to save user: %w", err)
+		return ConfirmPasswordRecoveryResult{}, fmt.Errorf("unable to save user: %w", err)
 	}
 
 	if err := uc.tokenStorage.DeleteUserDataUpdateToken(ctx, hashedResetToken); err != nil {
@@ -88,8 +95,8 @@ func (uc *ConfirmPasswordRecoveryUseCase) Execute(ctx context.Context, input Con
 
 	if err := uc.sessionStorage.RevokeAllUserSessions(ctx, userEntity.ID); err != nil {
 		uc.logger.Warn(ctx, "failed to revoke user sessions", "userID", userEntity.ID, "error", err)
-		return nil
+		return ConfirmPasswordRecoveryResult{UserID: userEntity.ID, SessionRevoked: false}, nil
 	}
 
-	return nil
+	return ConfirmPasswordRecoveryResult{UserID: userEntity.ID, SessionRevoked: true}, nil
 }

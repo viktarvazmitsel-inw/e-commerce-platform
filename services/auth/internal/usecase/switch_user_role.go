@@ -13,6 +13,11 @@ type SwitchUserRoleInput struct {
 	NewRole  domain.Role
 }
 
+type SwitchUserRoleResult struct {
+	TargetID       string
+	SessionRevoked bool
+}
+
 type SwitchUserRoleUseCase struct {
 	repo         UserRepository
 	tokenStorage SessionRepository
@@ -27,56 +32,56 @@ func NewSwitchUserRoleUseCase(r UserRepository, s SessionRepository, l Logger) *
 	}
 }
 
-func (uc *SwitchUserRoleUseCase) Execute(ctx context.Context, input SwitchUserRoleInput) error {
+func (uc *SwitchUserRoleUseCase) Execute(ctx context.Context, input SwitchUserRoleInput) (SwitchUserRoleResult, error) {
 	if input.AuthorID == "" {
-		return ErrUnauthorizedAction
+		return SwitchUserRoleResult{}, ErrUnauthorizedAction
 	}
 	if input.TargetID == "" {
-		return ErrUserIdNotFound
+		return SwitchUserRoleResult{}, ErrUserIdNotFound
 	}
 
 	authorUser, err := uc.repo.GetUserByID(ctx, input.AuthorID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
-			return ErrUserIdNotFound
+			return SwitchUserRoleResult{}, ErrUserIdNotFound
 		}
 
-		return fmt.Errorf("failed to fetch user from database: %w", err)
+		return SwitchUserRoleResult{}, fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
 	if err := authorUser.EnsureActive(); err != nil {
-		return err
+		return SwitchUserRoleResult{}, err
 	}
 
 	if err := authorUser.RequirePermission(domain.PermissionChangeRole); err != nil {
-		return err
+		return SwitchUserRoleResult{}, err
 	}
 
 	targetUser, err := uc.repo.GetUserByID(ctx, input.TargetID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
-			return ErrUserIdNotFound
+			return SwitchUserRoleResult{}, ErrUserIdNotFound
 		}
 
-		return fmt.Errorf("failed to fetch user from database: %w", err)
+		return SwitchUserRoleResult{}, fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
 	if err := targetUser.EnsureActive(); err != nil {
-		return err
+		return SwitchUserRoleResult{}, err
 	}
 
 	if err := targetUser.SetRole(input.NewRole); err != nil {
-		return err
+		return SwitchUserRoleResult{}, err
 	}
 
 	if err := uc.repo.Save(ctx, targetUser); err != nil {
-		return fmt.Errorf("unable to save user: %w", err)
+		return SwitchUserRoleResult{}, fmt.Errorf("unable to save user: %w", err)
 	}
 
 	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, input.TargetID); err != nil {
 		uc.logger.Warn(ctx, "unable to revoke user access token", "authorID", authorUser.ID, "targetID", targetUser.ID, "error", err)
-		return nil
+		return SwitchUserRoleResult{TargetID: targetUser.ID, SessionRevoked: false}, nil
 	}
 
-	return nil
+	return SwitchUserRoleResult{TargetID: targetUser.ID, SessionRevoked: true}, nil
 }

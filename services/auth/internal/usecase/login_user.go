@@ -59,7 +59,12 @@ func (uc *LoginUserUseCase) Execute(ctx context.Context, input LoginInput) (doma
 		return domain.TokenPair{}, ErrTokenPairGenerationFail
 	}
 
-	if err := uc.tokenStorage.SaveTokenPair(ctx, userEntity.ID, tokens); err != nil {
+	userInfo := &UserInfoTokenData{
+		UserID: userEntity.ID,
+		Role:   userEntity.Role,
+	}
+
+	if err := uc.tokenStorage.SaveTokenPair(ctx, userInfo, tokens); err != nil {
 		if errors.Is(err, ErrTokenPairSaveFail) {
 			return domain.TokenPair{}, ErrTokenPairSaveFail
 		}
