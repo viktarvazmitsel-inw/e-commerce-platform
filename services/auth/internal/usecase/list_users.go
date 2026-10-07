@@ -90,6 +90,9 @@ func (l *ListUsersUseCase) Execute(ctx context.Context, input ListUsersInput) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to load users from database: %w", err)
 	}
+	if userListRawData == nil {
+		return nil, errors.New("user repository returned empty result")
+	}
 
 	profiles := make([]UserLiteProfile, 0, len(userListRawData.Users))
 
