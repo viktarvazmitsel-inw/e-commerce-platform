@@ -16,6 +16,11 @@ type RegisterInput struct {
 	Phone    string
 }
 
+type RegisterUserResult struct {
+	UserID           string
+	VerificationSent bool
+}
+
 type RegisterUserUseCase struct {
 	repo           UserRepository
 	mail           EmailSender
@@ -40,53 +45,54 @@ func NewRegisterUserUseCase(
 	}
 }
 
-func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput) error {
+func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput) (RegisterUserResult, error) {
 	if !security.IsPasswordStrong(input.Password) {
-		return ErrPasswordIsNotStrongEnough
+		return RegisterUserResult{}, ErrPasswordIsNotStrongEnough
 	}
 
 	passwordHash, err := uc.passwordHasher.Hash(input.Password)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrPasswordHashFail, err)
+		return RegisterUserResult{}, fmt.Errorf("%w: %v", ErrPasswordHashFail, err)
 	}
 
 	isTaken, err := uc.repo.IsEmailTaken(ctx, input.Email)
 	if err != nil {
-		return fmt.Errorf("unable to connect database: %w", err)
+		return RegisterUserResult{}, fmt.Errorf("unable to connect database: %w", err)
 	}
 
 	if isTaken {
-		return ErrEmailAlreadyTaken
+		return RegisterUserResult{}, ErrEmailAlreadyTaken
 	}
 
 	userEntity, err := domain.NewUser(input.Email, passwordHash, input.Name, input.Surname, input.Phone)
 	if err != nil {
-		return err
+		return RegisterUserResult{}, err
 	}
 
 	if err := uc.repo.Create(ctx, userEntity); err != nil {
 		if errors.Is(err, ErrEmailAlreadyTaken) {
-			return ErrEmailAlreadyTaken
+			return RegisterUserResult{}, ErrEmailAlreadyTaken
 		}
-		return fmt.Errorf("failed to save user: %w", err)
+		return RegisterUserResult{}, fmt.Errorf("failed to save user: %w", err)
 	}
 
 	token, err := security.GenerateUserDataUpdateToken()
 	if err != nil {
 		uc.logger.Warn(ctx, "failed to generate email verification token", "userID", userEntity.ID, "error", err)
-		return nil
+		return RegisterUserResult{UserID: userEntity.ID, VerificationSent: false}, nil
 	}
 
-	hashedResetToken := security.HashToken(token)
+	hashedToken := security.HashToken(token)
 
-	if err := uc.tokenStorage.SaveVerificationToken(ctx, userEntity.ID, hashedResetToken); err != nil {
-		return fmt.Errorf("failed to save email verification token: %w", err)
+	if err := uc.tokenStorage.SaveVerificationToken(ctx, userEntity.ID, hashedToken); err != nil {
+		uc.logger.Warn(ctx, "failed to save email verification token", "userID", userEntity.ID, "error", err)
+		return RegisterUserResult{UserID: userEntity.ID, VerificationSent: false}, nil
 	}
 
 	if err := uc.mail.SendVerificationEmail(ctx, userEntity.Email, token); err != nil {
 		uc.logger.Warn(ctx, "failed to send verification email to user", "userID", userEntity.ID, "error", err)
-		return nil
+		return RegisterUserResult{UserID: userEntity.ID, VerificationSent: false}, nil
 	}
 
-	return nil
+	return RegisterUserResult{UserID: userEntity.ID, VerificationSent: true}, nil
 }

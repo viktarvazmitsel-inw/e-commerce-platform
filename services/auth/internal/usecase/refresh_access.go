@@ -58,7 +58,12 @@ func (uc *RefreshAccessUseCase) Execute(ctx context.Context, input RefreshTokenI
 		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenGenerationFail, err)
 	}
 
-	if err := uc.tokenStorage.UnsetAndSaveTokenPair(ctx, input.Token, userData.UserID, tokens); err != nil {
+	userInfo := &UserInfoTokenData{
+		UserID: userEntity.ID,
+		Role:   userEntity.Role,
+	}
+
+	if err := uc.tokenStorage.UnsetAndSaveTokenPair(ctx, input.Token, userInfo, tokens); err != nil {
 		return domain.TokenPair{}, fmt.Errorf("%w: %v", ErrTokenPairSaveFail, err)
 	}
 

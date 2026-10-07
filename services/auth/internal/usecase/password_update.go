@@ -13,6 +13,11 @@ type PasswordUpdateInput struct {
 	NewPassword string
 }
 
+type PasswordUpdateResult struct {
+	UserID         string
+	SessionRevoked bool
+}
+
 type PasswordUpdateUseCase struct {
 	repo           UserRepository
 	tokenStorage   SessionRepository
@@ -34,54 +39,54 @@ func NewPasswordUpdateUseCase(
 	}
 }
 
-func (uc *PasswordUpdateUseCase) Execute(ctx context.Context, input PasswordUpdateInput) error {
+func (uc *PasswordUpdateUseCase) Execute(ctx context.Context, input PasswordUpdateInput) (PasswordUpdateResult, error) {
 	if input.UserID == "" {
-		return ErrUserIdNotFound
+		return PasswordUpdateResult{}, ErrUserIdNotFound
 	}
 
 	if input.NewPassword == input.OldPassword {
-		return ErrSameNewPassword
+		return PasswordUpdateResult{}, ErrSameNewPassword
 	}
 
 	userEntity, err := uc.repo.GetUserByID(ctx, input.UserID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
-			return ErrUserIdNotFound
+			return PasswordUpdateResult{}, ErrUserIdNotFound
 		}
 
-		return fmt.Errorf("failed to fetch user from database: %w", err)
+		return PasswordUpdateResult{}, fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
 	if err := userEntity.EnsureActive(); err != nil {
-		return err
+		return PasswordUpdateResult{}, err
 	}
 
 	if !uc.passwordHasher.Compare(input.OldPassword, userEntity.PasswordHash) {
-		return ErrInvalidPassword
+		return PasswordUpdateResult{}, ErrInvalidPassword
 	}
 
 	if !security.IsPasswordStrong(input.NewPassword) {
-		return ErrPasswordIsNotStrongEnough
+		return PasswordUpdateResult{}, ErrPasswordIsNotStrongEnough
 	}
 
 	newPasswordHash, err := uc.passwordHasher.Hash(input.NewPassword)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrPasswordHashFail, err)
+		return PasswordUpdateResult{}, fmt.Errorf("%w: %v", ErrPasswordHashFail, err)
 	}
 
 	if err := userEntity.UpdateUserPassword(newPasswordHash); err != nil {
-		return err
+		return PasswordUpdateResult{}, err
 	}
 
 	if err := uc.repo.Save(ctx, userEntity); err != nil {
-		return fmt.Errorf("unable to save user: %w", err)
+		return PasswordUpdateResult{}, fmt.Errorf("unable to save user: %w", err)
 	}
 
 	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, input.UserID); err != nil {
 		uc.logger.Warn(ctx, "failed to revoke user sessions", "userID", userEntity.ID, "error", err)
-		return nil
+		return PasswordUpdateResult{UserID: userEntity.ID, SessionRevoked: false}, nil
 	}
 
-	return nil
+	return PasswordUpdateResult{UserID: userEntity.ID, SessionRevoked: true}, nil
 
 }
