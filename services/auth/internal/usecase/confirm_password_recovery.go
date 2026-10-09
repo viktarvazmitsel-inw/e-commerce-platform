@@ -54,12 +54,12 @@ func (uc *ConfirmPasswordRecoveryUseCase) Execute(ctx context.Context, input Con
 
 	hashedResetToken := security.HashToken(trimmedToken)
 
-	userData, err := uc.tokenStorage.LoadPasswordResetToken(ctx, hashedResetToken)
+	userID, err := uc.tokenStorage.LoadPasswordResetToken(ctx, hashedResetToken)
 	if err != nil {
 		return ConfirmPasswordRecoveryResult{}, ErrInvalidPasswordRecoveryToken
 	}
 
-	userEntity, err := uc.repo.GetUserByID(ctx, userData.UserID)
+	userEntity, err := uc.repo.GetUserByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return ConfirmPasswordRecoveryResult{}, ErrUserIdNotFound
