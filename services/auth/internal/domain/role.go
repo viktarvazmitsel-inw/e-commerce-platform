@@ -1,5 +1,7 @@
 package domain
 
+import "strconv"
+
 type Role uint8
 
 const (
@@ -36,4 +38,8 @@ func (r Role) HasPermission(p Permission) bool {
 	}
 
 	return false
+}
+
+func (r Role) String() string {
+	return strconv.Itoa(int(r))
 }
