@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"authorization/internal/usecase"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,11 +18,12 @@ type MessagePayload struct {
 type EmailSender struct {
 	rmqClient *RMQClient
 	exchange  string
+	logger    usecase.Logger
 }
 
-func NewEmailSender(rmqClient *RMQClient) (*EmailSender, error) {
+func NewEmailSender(c *RMQClient, l usecase.Logger) (*EmailSender, error) {
 	exchangeCh := "email_exchange"
-	if err := rmqClient.ch.ExchangeDeclare(
+	if err := c.ch.ExchangeDeclare(
 		exchangeCh,
 		"direct",
 		true,
@@ -33,10 +35,32 @@ func NewEmailSender(rmqClient *RMQClient) (*EmailSender, error) {
 		return nil, fmt.Errorf("failed to declare email exchange: %w", err)
 	}
 
-	return &EmailSender{
-		rmqClient: rmqClient,
+	sender := &EmailSender{
+		rmqClient: c,
 		exchange:  exchangeCh,
-	}, nil
+		logger:    l,
+	}
+
+	returnChan := make(chan amqp.Return, 10)
+	c.ch.NotifyReturn(returnChan)
+
+	go sender.handleReturnedMessages(returnChan)
+
+	return sender, nil
+}
+
+func (s *EmailSender) handleReturnedMessages(returnChan <-chan amqp.Return) {
+	for ret := range returnChan {
+		s.logger.Warn(
+			context.Background(),
+			"RabbitMQ message returned: unroutable message",
+			"exchange", ret.Exchange,
+			"routing_key", ret.RoutingKey,
+			"reply_code", ret.ReplyCode,
+			"reply_text", ret.ReplyText,
+			"body", string(ret.Body),
+		)
+	}
 }
 
 func (s *EmailSender) SendVerificationEmail(ctx context.Context, email, token string) error {
@@ -74,7 +98,7 @@ func (s *EmailSender) publish(ctx context.Context, payload MessagePayload, key s
 		ctx,
 		s.exchange, // exchange
 		key,        // routing key
-		false,      // mandatory
+		true,       // mandatory
 		false,      // immediate
 		amqp.Publishing{
 			ContentType:  "application/json",

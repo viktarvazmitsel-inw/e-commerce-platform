@@ -6,6 +6,7 @@ import (
 	"authorization/internal/infrastructure/token"
 	"authorization/internal/usecase"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -64,9 +65,13 @@ func (r *SessionRepository) SaveTokenPair(ctx context.Context, userInfo *usecase
 		r.logger.Warn(ctx, "Failed to clear expired tokens", "error", err)
 	}
 
-	isSet := r.redisClient.Expire(ctx, redisKey, r.refreshTokenTTL)
-	if !isSet.Val() {
-		r.logger.Warn(ctx, "Failed to set token expiration time in Redis")
+	isSet, err := r.redisClient.Expire(ctx, redisKey, r.refreshTokenTTL).Result()
+	if err != nil {
+		r.logger.Warn(ctx, "Failed to set token expiration time in Redis", "error", err)
+		return err
+	}
+	if !isSet {
+		r.logger.Warn(ctx, "Failed to set token expiration time in Redis", "error", err)
 	}
 
 	return nil
@@ -103,20 +108,54 @@ func (r *SessionRepository) GetUserInfoByRefreshToken(ctx context.Context, token
 	}, nil
 }
 
+var unsetAndSaveTokenScript = redis.NewScript(`
+local oldScore = redis.call('ZSCORE', KEYS[1], ARGV[1])
+if not oldScore then
+    return 0
+end
+
+local ok, err = pcall(redis.call, 'ZADD', KEYS[1], ARGV[2], ARGV[3])
+if not ok then
+    return redis.error_reply(tostring(err))
+end
+
+redis.call('ZREM', KEYS[1], ARGV[1])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[4])
+redis.call('EXPIRE', KEYS[1], ARGV[5])
+
+return 1
+`)
+
 func (r *SessionRepository) UnsetAndSaveTokenPair(ctx context.Context, oldToken string, userInfo *usecase.UserInfoTokenData, pair domain.TokenPair) error {
 	redisKey := "user:sessions:" + userInfo.UserID
-	removed, err := r.redisClient.ZRem(ctx, redisKey, security.HashToken(oldToken)).Result()
+	now := time.Now()
+	expirationTime := now.Add(r.refreshTokenTTL).Unix()
+	refreshTokenHash := security.HashToken(pair.RefreshToken)
+	oldTokenHash := security.HashToken(oldToken)
+	ttlSeconds := int64(r.refreshTokenTTL.Seconds())
+	if r.refreshTokenTTL > 0 && ttlSeconds == 0 {
+		ttlSeconds = 1
+	}
+
+	res, err := unsetAndSaveTokenScript.Run(
+		ctx,
+		r.redisClient,
+		[]string{redisKey},
+		oldTokenHash,
+		expirationTime,
+		refreshTokenHash,
+		now.Unix(),
+		ttlSeconds,
+	).Int()
 	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return usecase.ErrInvalidRefreshToken
+		}
 		return err
 	}
 
-	if removed == 0 {
+	if res == 0 {
 		return usecase.ErrInvalidRefreshToken
-	}
-
-	err = r.SaveTokenPair(ctx, userInfo, pair)
-	if err != nil {
-		return err
 	}
 
 	return nil

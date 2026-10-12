@@ -76,7 +76,7 @@ func (r *UserDataUpdateTokenRepository) LoadPasswordResetToken(ctx context.Conte
 }
 
 func (r *UserDataUpdateTokenRepository) DeleteUserDataUpdateToken(ctx context.Context, token string) error {
-	err := r.redisClient.Del(ctx, "email_update:"+token, "password_reset"+token).Err()
+	err := r.redisClient.Del(ctx, "email_update:"+token, "password_reset:"+token).Err()
 	if err != nil {
 		return err
 	}

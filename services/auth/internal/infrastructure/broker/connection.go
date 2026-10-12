@@ -2,6 +2,8 @@ package broker
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -10,7 +12,7 @@ import (
 type RMQConfig struct {
 	Host     string
 	Port     string
-	Username string
+	User     string
 	Password string
 }
 
@@ -21,7 +23,13 @@ type RMQClient struct {
 }
 
 func (c *RMQConfig) DSN() string {
-	return "amqp://" + c.Username + ":" + c.Password + "@" + c.Host + ":" + c.Port
+	u := &url.URL{
+		Scheme: "amqp",
+		User:   url.UserPassword(c.User, c.Password),
+		Host:   fmt.Sprintf("%s:%s", c.Host, c.Port),
+	}
+
+	return u.String()
 }
 
 func NewConnection(ctx context.Context, dsn *RMQConfig) (*RMQClient, error) {
@@ -32,6 +40,7 @@ func NewConnection(ctx context.Context, dsn *RMQConfig) (*RMQClient, error) {
 
 	ch, err := conn.Channel()
 	if err != nil {
+		conn.Close()
 		return nil, err
 	}
 
@@ -44,6 +53,7 @@ func (c *RMQClient) Close() error {
 
 	if c.ch != nil {
 		if err := c.ch.Close(); err != nil {
+			c.conn.Close()
 			return err
 		}
 		c.ch = nil
