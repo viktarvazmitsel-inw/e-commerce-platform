@@ -58,7 +58,6 @@ func (s *EmailSender) handleReturnedMessages(returnChan <-chan amqp.Return) {
 			"routing_key", ret.RoutingKey,
 			"reply_code", ret.ReplyCode,
 			"reply_text", ret.ReplyText,
-			"body", string(ret.Body),
 		)
 	}
 }
