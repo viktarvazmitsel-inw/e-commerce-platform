@@ -13,14 +13,18 @@ const (
 type Permission string
 
 const (
-	PermissionChangeRole  Permission = "role:change"
-	PermissionGetUserList Permission = "user:list"
+	PermissionChangeRole         Permission = "role:change"
+	PermissionGetUserList        Permission = "user:list"
+	PermissionGetFullUserProfile Permission = "user:fullProfile"
+	PermissionDeleteUserProfile  Permission = "user:softDelete"
 )
 
 var rolePermission = map[Role][]Permission{
 	RoleAdmin: {
 		PermissionChangeRole,
 		PermissionGetUserList,
+		PermissionGetFullUserProfile,
+		PermissionDeleteUserProfile,
 	},
 }
 

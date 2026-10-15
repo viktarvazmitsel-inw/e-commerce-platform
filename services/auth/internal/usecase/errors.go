@@ -13,6 +13,7 @@ var (
 	ErrTokenPairGenerationFail      = errors.New("unable to generate access and refresh tokens")
 	ErrTokenPairSaveFail            = errors.New("unable to save access and refresh tokens")
 	ErrUserIdNotFound               = errors.New("user with such id not found")
+	ErrTargetUserNotFound           = errors.New("target user not found")
 	ErrUnauthorizedAction           = errors.New("you have no permission for this action")
 	ErrInvalidUpdateEmailToken      = errors.New("invalid update token")
 	ErrSameEmail                    = errors.New("new email must be different from current")
