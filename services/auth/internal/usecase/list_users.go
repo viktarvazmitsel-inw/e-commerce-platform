@@ -86,7 +86,7 @@ func (l *ListUsersUseCase) Execute(ctx context.Context, input ListUsersInput) (*
 		return nil, err
 	}
 
-	userListRawData, err := l.repo.GetUserList(ctx, page, quantity)
+	userListRawData, resultQuantity, err := l.repo.GetUserList(ctx, page, quantity)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load users from database: %w", err)
 	}
@@ -94,9 +94,9 @@ func (l *ListUsersUseCase) Execute(ctx context.Context, input ListUsersInput) (*
 		return nil, errors.New("user repository returned empty result")
 	}
 
-	profiles := make([]UserLiteProfile, 0, len(userListRawData.Users))
+	profiles := make([]UserLiteProfile, 0, len(userListRawData))
 
-	for _, userEntity := range userListRawData.Users {
+	for _, userEntity := range userListRawData {
 		profiles = append(profiles, *toUserLiteProfile(&userEntity))
 	}
 
@@ -104,7 +104,7 @@ func (l *ListUsersUseCase) Execute(ctx context.Context, input ListUsersInput) (*
 		Users:      profiles,
 		Page:       page,
 		Quantity:   quantity,
-		TotalCount: userListRawData.TotalCount,
+		TotalCount: resultQuantity,
 	}, nil
 
 }

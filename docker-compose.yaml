@@ -41,6 +41,7 @@ services:
       - broker
     depends_on:
       - broker
+    restart: unless-stopped
 
   auth-db:
     container_name: shop-auth-db

@@ -6,22 +6,13 @@ import (
 )
 
 type EmailUpdateTokenData struct {
-	UserID   string `json:"user_id"`
-	NewEmail string `json:"new_email"`
-}
-
-type PasswordResetTokenData struct {
-	UserID string `json:"user_id"`
+	UserID   string
+	NewEmail string
 }
 
 type UserInfoTokenData struct {
-	UserID string      `json:"user_id"`
-	Role   domain.Role `json:"role"`
-}
-
-type UserListRawData struct {
-	Users      []domain.User
-	TotalCount int
+	UserID string
+	Role   domain.Role
 }
 
 type Logger interface {
@@ -44,7 +35,7 @@ type UserRepository interface {
 	Save(ctx context.Context, user *domain.User) error
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetUserByID(ctx context.Context, ID string) (*domain.User, error)
-	GetUserList(ctx context.Context, page, quantity int) (*UserListRawData, error)
+	GetUserList(ctx context.Context, page, quantity int) ([]domain.User, int, error)
 }
 
 type VerificationTokenRepository interface {
@@ -57,7 +48,7 @@ type UserDataUpdateTokenRepository interface {
 	SaveEmailUpdateToken(ctx context.Context, userID, newEmail, token string) error
 	LoadEmailUpdateToken(ctx context.Context, token string) (*EmailUpdateTokenData, error)
 	SavePasswordResetToken(ctx context.Context, userID, token string) error
-	LoadPasswordResetToken(ctx context.Context, token string) (*PasswordResetTokenData, error)
+	LoadPasswordResetToken(ctx context.Context, token string) (string, error)
 	DeleteUserDataUpdateToken(ctx context.Context, token string) error
 }
 
