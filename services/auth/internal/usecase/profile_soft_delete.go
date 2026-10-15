@@ -1,18 +1,21 @@
 package usecase
 
 import (
+	"authorization/internal/domain"
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type SoftDeleteProfileInput struct {
-	UserID   string
+	AuthorID string
+	TargetID string
 	Password string
 }
 
 type SoftDeleteProfileResult struct {
-	UserID         string
+	TargetID       string
 	SessionRevoked bool
 }
 
@@ -38,11 +41,17 @@ func NewSoftDeleteProfileUseCase(
 }
 
 func (uc *SoftDeleteProfileUseCase) Execute(ctx context.Context, input SoftDeleteProfileInput) (SoftDeleteProfileResult, error) {
-	if input.UserID == "" {
+	trimmedAuthorID := strings.TrimSpace(input.AuthorID)
+	if trimmedAuthorID == "" {
 		return SoftDeleteProfileResult{}, ErrUserIdNotFound
 	}
 
-	userEntity, err := uc.repo.GetUserByID(ctx, input.UserID)
+	trimmedTargetID := strings.TrimSpace(input.TargetID)
+	if trimmedTargetID == "" {
+		return SoftDeleteProfileResult{}, ErrTargetUserNotFound
+	}
+
+	authorEntity, err := uc.repo.GetUserByID(ctx, trimmedAuthorID)
 	if err != nil {
 		if errors.Is(err, ErrUserIdNotFound) {
 			return SoftDeleteProfileResult{}, ErrUserIdNotFound
@@ -51,24 +60,45 @@ func (uc *SoftDeleteProfileUseCase) Execute(ctx context.Context, input SoftDelet
 		return SoftDeleteProfileResult{}, fmt.Errorf("failed to fetch user from database: %w", err)
 	}
 
-	if err := userEntity.EnsureActive(); err != nil {
+	if err := authorEntity.EnsureActive(); err != nil {
 		return SoftDeleteProfileResult{}, err
 	}
 
-	if !uc.passwordHasher.Compare(input.Password, userEntity.PasswordHash) {
+	if !uc.passwordHasher.Compare(input.Password, authorEntity.PasswordHash) {
 		return SoftDeleteProfileResult{}, ErrInvalidPassword
 	}
 
-	userEntity.Deactivate()
+	isSelf := trimmedAuthorID == trimmedTargetID
+	isAdmin := authorEntity.Can(domain.PermissionDeleteUserProfile)
+	if !isSelf && !isAdmin {
+		return SoftDeleteProfileResult{}, ErrUnauthorizedAction
+	}
 
-	if err := uc.repo.Save(ctx, userEntity); err != nil {
+	var targetEntity *domain.User
+	if isSelf {
+		targetEntity = authorEntity
+	} else {
+		targetEntity, err = uc.repo.GetUserByID(ctx, trimmedTargetID)
+		if err != nil {
+			if errors.Is(err, ErrUserIdNotFound) {
+				return SoftDeleteProfileResult{}, ErrTargetUserNotFound
+			}
+			return SoftDeleteProfileResult{}, fmt.Errorf("failed to fetch user from database: %w", err)
+		}
+
+		if err := targetEntity.EnsureActive(); err != nil {
+			return SoftDeleteProfileResult{}, err
+		}
+	}
+
+	targetEntity.Deactivate()
+	if err := uc.repo.Save(ctx, targetEntity); err != nil {
 		return SoftDeleteProfileResult{}, fmt.Errorf("unable to save user: %w", err)
 	}
-
-	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, userEntity.ID); err != nil {
-		uc.logger.Warn(ctx, "failed to revoke user session", "userID", userEntity.ID, "error", err)
-		return SoftDeleteProfileResult{UserID: userEntity.ID, SessionRevoked: false}, nil
+	if err := uc.tokenStorage.RevokeAllUserSessions(ctx, targetEntity.ID); err != nil {
+		uc.logger.Warn(ctx, "failed to revoke user session", "userID", targetEntity.ID, "error", err)
+		return SoftDeleteProfileResult{TargetID: targetEntity.ID, SessionRevoked: false}, nil
 	}
+	return SoftDeleteProfileResult{TargetID: targetEntity.ID, SessionRevoked: true}, nil
 
-	return SoftDeleteProfileResult{UserID: userEntity.ID, SessionRevoked: true}, nil
 }
