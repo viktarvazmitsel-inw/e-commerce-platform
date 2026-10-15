@@ -68,29 +68,27 @@ func (uc *SoftDeleteProfileUseCase) Execute(ctx context.Context, input SoftDelet
 		return SoftDeleteProfileResult{}, ErrInvalidPassword
 	}
 
-	var isSelf = false
+	isSelf := trimmedAuthorID == trimmedTargetID
+	isAdmin := authorEntity.Can(domain.PermissionDeleteUserProfile)
+	if !isSelf && !isAdmin {
+		return SoftDeleteProfileResult{}, ErrUnauthorizedAction
+	}
+
 	var targetEntity *domain.User
-	if trimmedAuthorID == trimmedTargetID {
+	if isSelf {
 		targetEntity = authorEntity
-		isSelf = true
 	} else {
 		targetEntity, err = uc.repo.GetUserByID(ctx, trimmedTargetID)
 		if err != nil {
 			if errors.Is(err, ErrUserIdNotFound) {
 				return SoftDeleteProfileResult{}, ErrTargetUserNotFound
 			}
-
 			return SoftDeleteProfileResult{}, fmt.Errorf("failed to fetch user from database: %w", err)
 		}
-	}
 
-	if err := targetEntity.EnsureActive(); err != nil {
-		return SoftDeleteProfileResult{}, err
-	}
-
-	isAdmin := authorEntity.Can(domain.PermissionDeleteUserProfile)
-	if !isSelf && !isAdmin {
-		return SoftDeleteProfileResult{}, ErrUnauthorizedAction
+		if err := targetEntity.EnsureActive(); err != nil {
+			return SoftDeleteProfileResult{}, err
+		}
 	}
 
 	targetEntity.Deactivate()
