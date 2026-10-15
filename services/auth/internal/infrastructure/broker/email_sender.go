@@ -86,13 +86,6 @@ func (s *EmailSender) publish(ctx context.Context, payload MessagePayload, key s
 		return err
 	}
 
-	s.rmqClient.mu.Lock()
-	defer s.rmqClient.mu.Unlock()
-
-	if s.rmqClient.ch == nil {
-		return fmt.Errorf("no channel to publish")
-	}
-
 	err = s.rmqClient.ch.PublishWithContext(
 		ctx,
 		s.exchange, // exchange

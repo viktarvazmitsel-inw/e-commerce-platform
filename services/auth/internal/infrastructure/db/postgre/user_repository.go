@@ -16,15 +16,13 @@ type userRepository struct {
 	conn *pgxpool.Pool
 }
 
-var userTable = "users"
-
 func NewUserRepository(conn *pgxpool.Pool) *userRepository {
 	return &userRepository{conn: conn}
 }
 
 func (r *userRepository) IsEmailTaken(ctx context.Context, email string) (bool, error) {
 	var exists bool
-	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE email=$1)", userTable)
+	query := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s WHERE email=$1)", "users")
 	err := r.conn.QueryRow(ctx, query, email).Scan(&exists)
 	if err != nil {
 		return false, err
@@ -34,7 +32,7 @@ func (r *userRepository) IsEmailTaken(ctx context.Context, email string) (bool, 
 
 func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 	model := FromDomain(user)
-	query := fmt.Sprintf("INSERT INTO %s (id, email, password_hash, name, surname, phone, role, is_verified, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", userTable)
+	query := fmt.Sprintf("INSERT INTO %s (id, email, password_hash, name, surname, phone, role, is_verified, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)", "users")
 	_, err := r.conn.Exec(
 		ctx,
 		query,
@@ -61,7 +59,7 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 
 func (r *userRepository) Save(ctx context.Context, user *domain.User) error {
 	model := FromDomain(user)
-	query := fmt.Sprintf("UPDATE %s SET email=$1, password_hash=$2, name=$3, surname=$4, phone=$5, role=$6, is_verified=$7, is_active=$8 WHERE id=$9", userTable)
+	query := fmt.Sprintf("UPDATE %s SET email=$1, password_hash=$2, name=$3, surname=$4, phone=$5, role=$6, is_verified=$7, is_active=$8 WHERE id=$9", "users")
 	cmdTag, err := r.conn.Exec(
 		ctx,
 		query,
@@ -89,7 +87,7 @@ func (r *userRepository) Save(ctx context.Context, user *domain.User) error {
 }
 
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := fmt.Sprintf("SELECT id, email, password_hash, name, surname, phone, role, is_verified, is_active FROM %s WHERE email=$1", userTable)
+	query := fmt.Sprintf("SELECT id, email, password_hash, name, surname, phone, role, is_verified, is_active FROM %s WHERE email=$1", "users")
 	row := r.conn.QueryRow(ctx, query, email)
 	var model UserModel
 	err := row.Scan(
@@ -115,7 +113,7 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*dom
 }
 
 func (r *userRepository) GetUserByID(ctx context.Context, ID string) (*domain.User, error) {
-	query := fmt.Sprintf("SELECT id, email, password_hash, name, surname, phone, role, is_verified, is_active FROM %s WHERE id=$1", userTable)
+	query := fmt.Sprintf("SELECT id, email, password_hash, name, surname, phone, role, is_verified, is_active FROM %s WHERE id=$1", "users")
 	row := r.conn.QueryRow(ctx, query, ID)
 	var model UserModel
 	err := row.Scan(
@@ -149,7 +147,7 @@ func (r *userRepository) GetUserList(ctx context.Context, page, quantity int) ([
 	offset := (page - 1) * quantity
 
 	var totalCount int
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", userTable)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", "users")
 	if err := r.conn.QueryRow(ctx, countQuery).Scan(&totalCount); err != nil {
 		return nil, 0, fmt.Errorf("failed to fetch total user count: %w", err)
 	}
@@ -158,7 +156,7 @@ func (r *userRepository) GetUserList(ctx context.Context, page, quantity int) ([
 		return []domain.User{}, 0, nil
 	}
 
-	query := fmt.Sprintf("SELECT id, email, password_hash, name, surname, phone, role, is_verified, is_active FROM %s ORDER BY id LIMIT $1 OFFSET $2", userTable)
+	query := fmt.Sprintf("SELECT id, email, password_hash, name, surname, phone, role, is_verified, is_active FROM %s ORDER BY id LIMIT $1 OFFSET $2", "users")
 	rows, err := r.conn.Query(ctx, query, quantity, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to select users from database: %w", err)

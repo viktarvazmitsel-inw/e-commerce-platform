@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -19,7 +18,6 @@ type RMQConfig struct {
 type RMQClient struct {
 	conn *amqp.Connection
 	ch   *amqp.Channel
-	mu   sync.Mutex
 }
 
 func (c *RMQConfig) DSN() string {
@@ -48,9 +46,6 @@ func NewConnection(ctx context.Context, dsn *RMQConfig) (*RMQClient, error) {
 }
 
 func (c *RMQClient) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.ch != nil {
 		if err := c.ch.Close(); err != nil {
 			c.conn.Close()
