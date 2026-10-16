@@ -40,7 +40,7 @@ func (h *VerifyUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var tokenData TokenData
-	if DecodeJSON(w, r, &tokenData) {
+	if !DecodeJSON(w, r, &tokenData) {
 		return
 	}
 
