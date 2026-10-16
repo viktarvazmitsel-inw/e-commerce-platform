@@ -109,8 +109,9 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	RespondJSON(w, http.StatusOK, &Response{
 		Success: true,
-		Data: map[string]string{
-			"message": "deletion successful",
+		Data: map[string]any{
+			"message":         "deletion successful",
+			"session_revoked": deletionResult.SessionRevoked,
 		},
 	})
 }
