@@ -46,7 +46,7 @@ func (h *ResendVerificationEmailHandler) ServeHTTP(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if !isResendCredentialsFormatOk(resendVerificationCreds) {
+	if !isResendCredentialsFormatOk(&resendVerificationCreds) {
 		RespondJSON(w, http.StatusBadRequest, &Response{
 			Success: false,
 			Errors: &APIError{
@@ -58,7 +58,7 @@ func (h *ResendVerificationEmailHandler) ServeHTTP(w http.ResponseWriter, r *htt
 	}
 
 	resendVerificationInput := usecase.ResendVerificationEmailInput{
-		Email:    strings.TrimSpace(resendVerificationCreds.Email),
+		Email:    resendVerificationCreds.Email,
 		Password: resendVerificationCreds.Password,
 	}
 
@@ -76,9 +76,10 @@ func (h *ResendVerificationEmailHandler) ServeHTTP(w http.ResponseWriter, r *htt
 
 }
 
-func isResendCredentialsFormatOk(resendVerificationCreds ResendVerificationCredentials) bool {
-	trimmedEmail := strings.TrimSpace(resendVerificationCreds.Email)
-	if trimmedEmail == "" || !domain.IsEmailValid(trimmedEmail) {
+func isResendCredentialsFormatOk(resendVerificationCreds *ResendVerificationCredentials) bool {
+	resendVerificationCreds.Email = strings.TrimSpace(resendVerificationCreds.Email)
+	resendVerificationCreds.Email = strings.ToLower(resendVerificationCreds.Email)
+	if !domain.IsEmailValid(resendVerificationCreds.Email) {
 		return false
 	}
 	if len(resendVerificationCreds.Password) < 8 || len(resendVerificationCreds.Password) > 50 {

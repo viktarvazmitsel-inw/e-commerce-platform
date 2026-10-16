@@ -46,7 +46,7 @@ func (h *LoginUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !isCredentialsFormatOk(userCredentials) {
+	if !isCredentialsFormatOk(&userCredentials) {
 		RespondJSON(w, http.StatusBadRequest, &Response{
 			Success: false,
 			Errors: &APIError{
@@ -78,9 +78,10 @@ func (h *LoginUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func isCredentialsFormatOk(uCreds UserCredentials) bool {
-	trimmedEmail := strings.TrimSpace(uCreds.Email)
-	if trimmedEmail == "" || !domain.IsEmailValid(trimmedEmail) {
+func isCredentialsFormatOk(uCreds *UserCredentials) bool {
+	uCreds.Email = strings.TrimSpace(uCreds.Email)
+	uCreds.Email = strings.ToLower(uCreds.Email)
+	if !domain.IsEmailValid(uCreds.Email) {
 		return false
 	}
 	if len(uCreds.Password) < 8 || len(uCreds.Password) > 50 {

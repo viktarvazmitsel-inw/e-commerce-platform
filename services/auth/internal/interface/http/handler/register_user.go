@@ -102,10 +102,10 @@ func (h *RegisterUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 func validateUserData(uData *UserData) map[string]string {
 	errorsDetails := make(map[string]string)
 
-	trimmedEmail := strings.TrimSpace(uData.Email)
-
-	if trimmedEmail == "" || !domain.IsEmailValid(trimmedEmail) {
-		errorsDetails["email"] = "incorrect email"
+	uData.Email = strings.TrimSpace(uData.Email)
+	uData.Email = strings.ToLower(uData.Email)
+	if !domain.IsEmailValid(uData.Email) {
+		errorsDetails["email"] = "email must be a valid email address"
 	}
 	if len(uData.Password) < 8 || len(uData.Password) > 50 {
 		errorsDetails["password"] = "password must be from 8 to 50 characters"

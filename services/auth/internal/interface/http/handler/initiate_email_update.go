@@ -69,7 +69,7 @@ func (h *InitiateEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	errorsDetails := validateEmailUpdateBody(body)
+	errorsDetails := validateEmailUpdateBody(&body)
 	if len(errorsDetails) > 0 {
 		RespondJSON(w, http.StatusBadRequest, &Response{
 			Success: false,
@@ -101,16 +101,17 @@ func (h *InitiateEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 	})
 }
 
-func validateEmailUpdateBody(body EmailUpdateBody) map[string]string {
+func validateEmailUpdateBody(body *EmailUpdateBody) map[string]string {
 	errorsDetails := make(map[string]string)
 
 	if len(body.Password) < 8 || len(body.Password) > 50 {
-		errorsDetails["password"] = "incorrect password"
+		errorsDetails["password"] = "password must be between 8 and 50 characters"
 	}
 
-	trimmedNewEmail := strings.TrimSpace(body.NewEmail)
-	if trimmedNewEmail == "" || !domain.IsEmailValid(trimmedNewEmail) {
-		errorsDetails["new_email"] = "invalid email format"
+	body.NewEmail = strings.TrimSpace(body.NewEmail)
+	body.NewEmail = strings.ToLower(body.NewEmail)
+	if !domain.IsEmailValid(body.NewEmail) {
+		errorsDetails["new_email"] = "email must be a valid email address"
 	}
 
 	return errorsDetails
