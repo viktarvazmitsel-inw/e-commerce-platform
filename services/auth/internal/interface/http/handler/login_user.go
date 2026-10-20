@@ -68,12 +68,13 @@ func (h *LoginUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setRefreshTokenCookie(w, tokenPair)
+
 	RespondJSON(w, http.StatusOK, &Response{
 		Success: true,
 		Data: map[string]string{
-			"message":       "login successful",
-			"access_token":  tokenPair.AccessToken,
-			"refresh_token": tokenPair.RefreshToken,
+			"message":      "login successful",
+			"access_token": tokenPair.AccessToken,
 		},
 	})
 }
