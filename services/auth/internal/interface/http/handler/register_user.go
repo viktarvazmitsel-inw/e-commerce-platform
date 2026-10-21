@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -32,7 +33,7 @@ type UserData struct {
 	Phone    string `json:"phone"`
 }
 
-func NewRegisterUser(uc RegisterUserUseCase) *RegisterUserHandler {
+func NewRegisterUserHandler(uc RegisterUserUseCase) *RegisterUserHandler {
 	return &RegisterUserHandler{
 		regUseCase: uc,
 	}
@@ -40,9 +41,9 @@ func NewRegisterUser(uc RegisterUserUseCase) *RegisterUserHandler {
 
 func (h *RegisterUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -57,9 +58,9 @@ func (h *RegisterUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	errorsDetails := validateUserData(&userData)
 	if len(errorsDetails) > 0 {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_USER_DATA",
 				Message: "invalid user data",
 				Details: errorsDetails,
@@ -83,9 +84,9 @@ func (h *RegisterUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if !registerResult.VerificationSent {
-		RespondJSON(w, http.StatusAccepted, &Response{
+		response.RespondJSON(w, http.StatusAccepted, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "EMAIL_DELIVERY_FAIL",
 				Message: "registration partially successful",
 			},
@@ -93,7 +94,7 @@ func (h *RegisterUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data:    map[string]string{"message": "check your email"},
 	})
@@ -142,9 +143,9 @@ func (h *RegisterUserHandler) handleUsecaseError(w http.ResponseWriter, err erro
 		errorsDetails["email"] = err.Error()
 		statusCode = http.StatusConflict
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "registration failed",
 			},
@@ -152,9 +153,9 @@ func (h *RegisterUserHandler) handleUsecaseError(w http.ResponseWriter, err erro
 		return
 	}
 
-	RespondJSON(w, statusCode, &Response{
+	response.RespondJSON(w, statusCode, &response.Response{
 		Success: false,
-		Errors: &APIError{
+		Errors: &response.APIError{
 			Code:    "REGISTRATION_FAILED",
 			Message: "registration failed",
 			Details: errorsDetails,

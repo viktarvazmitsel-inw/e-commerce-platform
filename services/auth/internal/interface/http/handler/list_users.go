@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -27,9 +28,9 @@ func NewListUsersHandler(uc ListUsersUseCase) *ListUsersHandler {
 
 func (h *ListUsersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -39,9 +40,9 @@ func (h *ListUsersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	authorIDVal, ok := r.Context().Value("userID").(string)
 	if !ok {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: "author id is undefined",
 			},
@@ -50,9 +51,9 @@ func (h *ListUsersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	authorID := strings.TrimSpace(authorIDVal)
 	if authorID == "" {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: "author id is undefined",
 			},
@@ -71,9 +72,9 @@ func (h *ListUsersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !quantityOK {
 			details["quantity"] = "quantity must be an integer"
 		}
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_PARAMETERS",
 				Message: "invalid query parameters",
 				Details: details,
@@ -92,7 +93,7 @@ func (h *ListUsersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data:    output,
 	})
@@ -115,33 +116,33 @@ func parseOptionalIntQuery(raw string) (int, bool) {
 func (h *ListUsersHandler) handleUseCaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrUserIdNotFound):
-		RespondJSON(w, http.StatusNotFound, &Response{
+		response.RespondJSON(w, http.StatusNotFound, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_NOT_FOUND",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, usecase.ErrUnauthorizedAction), errors.Is(err, domain.ErrPermissionDenied):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "FORBIDDEN",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrUserDeactivated):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "DEACTIVATED_USER",
 				Message: err.Error(),
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "failed to load users",
 			},

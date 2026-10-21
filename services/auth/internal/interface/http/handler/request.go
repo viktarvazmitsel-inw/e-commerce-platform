@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"authorization/internal/interface/http/response"
 )
 
 const maxRequestBodySize = 1024 * 1024
@@ -14,18 +16,18 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, dest any) bool {
 	if err := json.NewDecoder(r.Body).Decode(dest); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			RespondJSON(w, http.StatusRequestEntityTooLarge, &Response{
+			response.RespondJSON(w, http.StatusRequestEntityTooLarge, &response.Response{
 				Success: false,
-				Errors: &APIError{
+				Errors: &response.APIError{
 					Code:    "REQUEST_ENTITY_TOO_LARGE",
 					Message: "oversized request",
 				},
 			})
 			return false
 		}
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_JSON",
 				Message: "incorrect data format",
 			},

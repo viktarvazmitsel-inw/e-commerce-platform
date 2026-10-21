@@ -6,10 +6,9 @@ import (
 	"net/http"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
-
-const refreshTokenCookie = "refresh_token"
 
 type RefreshAccessUseCase interface {
 	Execute(ctx context.Context, input usecase.RefreshTokenInput) (domain.TokenPair, error)
@@ -27,9 +26,9 @@ func NewRefreshAccessHandler(uc RefreshAccessUseCase) *RefreshAccessHandler {
 
 func (h *RefreshAccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -39,9 +38,9 @@ func (h *RefreshAccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	cookie, err := r.Cookie(refreshTokenCookie)
 	if err != nil || cookie.Value == "" {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_REFRESH_TOKEN",
 				Message: "invalid or expired refresh token",
 			},
@@ -59,7 +58,7 @@ func (h *RefreshAccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 
 	setRefreshTokenCookie(w, tokenPair)
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]string{
 			"access_token": tokenPair.AccessToken,
@@ -83,35 +82,35 @@ func (h *RefreshAccessHandler) handleUseCaseError(w http.ResponseWriter, err err
 	switch {
 	case errors.Is(err, usecase.ErrInvalidRefreshToken):
 		clearRefreshTokenCookie(w)
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_REFRESH_TOKEN",
 				Message: "invalid or expired refresh token",
 			},
 		})
 	case errors.Is(err, usecase.ErrUserIdNotFound):
 		clearRefreshTokenCookie(w)
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_NOT_FOUND",
 				Message: "user not found",
 			},
 		})
 	case errors.Is(err, domain.ErrUserDeactivated):
 		clearRefreshTokenCookie(w)
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_DEACTIVATED",
 				Message: "profile is deactivated",
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "refresh failed",
 			},

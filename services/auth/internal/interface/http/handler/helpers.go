@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const refreshTokenCookie = "refresh_token"
+
 func setRefreshTokenCookie(w http.ResponseWriter, pair domain.TokenPair) {
 	maxAge := int(time.Until(pair.RefreshTokenExpiresAt).Seconds())
 	if maxAge < 0 {

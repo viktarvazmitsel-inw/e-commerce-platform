@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -31,9 +32,9 @@ func NewLoginUserHandler(uc LoginUserUseCase) *LoginUserHandler {
 
 func (h *LoginUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -47,9 +48,9 @@ func (h *LoginUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isCredentialsFormatOk(&userCredentials) {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_CREDENTIALS",
 				Message: "invalid credentials",
 			},
@@ -70,7 +71,7 @@ func (h *LoginUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	setRefreshTokenCookie(w, tokenPair)
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]string{
 			"message":      "login successful",
@@ -95,33 +96,33 @@ func isCredentialsFormatOk(uCreds *UserCredentials) bool {
 func (h *LoginUserHandler) handleUseCaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrInvalidCredentials):
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_CREDENTIALS",
 				Message: "invalid email or password",
 			},
 		})
 	case errors.Is(err, usecase.ErrUserEmailIsNotVerified):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNVERIFIED_EMAIL",
 				Message: "user email is not verified",
 			},
 		})
 	case errors.Is(err, domain.ErrUserDeactivated):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_DEACTIVATED",
 				Message: "profile is deactivated",
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "login failed",
 			},

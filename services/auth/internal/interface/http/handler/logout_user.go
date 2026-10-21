@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -30,9 +31,9 @@ func NewLogoutUserHandler(uc LogoutUserUseCase) *LogoutUserHandler {
 
 func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -46,9 +47,9 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isLogoutCredentialsFormatOk(creds) {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_PARAMETERS",
 				Message: "user_id and token are required",
 			},
@@ -66,7 +67,7 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]string{
 			"message": "logout successful",
@@ -87,25 +88,25 @@ func isLogoutCredentialsFormatOk(creds LogoutCredentials) bool {
 func (h *LogoutUserHandler) handleUseCaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrUserIdNotFound):
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_NOT_FOUND",
 				Message: "user not found",
 			},
 		})
 	case errors.Is(err, usecase.ErrInvalidRefreshToken):
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_REFRESH_TOKEN",
 				Message: "invalid or expired refresh token",
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "logout failed",
 			},

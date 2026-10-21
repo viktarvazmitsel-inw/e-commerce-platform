@@ -2,6 +2,7 @@ package handler
 
 import (
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 	"context"
 	"errors"
@@ -29,9 +30,9 @@ func NewVerifyUserHandler(uc VerifyUserUseCase) *VerifyUserHandler {
 
 func (h *VerifyUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -46,9 +47,9 @@ func (h *VerifyUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	token := strings.TrimSpace(tokenData.Token)
 	if token == "" {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_VERIFICATION_TOKEN",
 				Message: "invalid verification token",
 			},
@@ -65,7 +66,7 @@ func (h *VerifyUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data:    map[string]string{"message": "verification successful"},
 	})
@@ -81,9 +82,9 @@ func (h *VerifyUserHandler) handleUsecaseError(w http.ResponseWriter, err error)
 	case errors.Is(err, usecase.ErrUserIdNotFound), errors.Is(err, domain.ErrUserDeactivated):
 		errorsDetails["user"] = err.Error()
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "verification failed",
 			},
@@ -91,9 +92,9 @@ func (h *VerifyUserHandler) handleUsecaseError(w http.ResponseWriter, err error)
 		return
 	}
 
-	RespondJSON(w, http.StatusBadRequest, &Response{
+	response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 		Success: false,
-		Errors: &APIError{
+		Errors: &response.APIError{
 			Code:    "VERIFICATION_FAILED",
 			Message: "verification failed",
 			Details: errorsDetails,

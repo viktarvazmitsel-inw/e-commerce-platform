@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 
 	"github.com/go-chi/chi/v5"
@@ -28,9 +29,9 @@ func NewSwitchUserRoleHandler(uc SwitchUserRoleUseCase) *SwitchUserRoleHandler {
 
 func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -40,9 +41,9 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	authorIDVal, ok := r.Context().Value("userID").(string)
 	if !ok {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: "author id is undefined",
 			},
@@ -51,9 +52,9 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 	authorID := strings.TrimSpace(authorIDVal)
 	if authorID == "" {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: "author id is undefined",
 			},
@@ -63,9 +64,9 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	targetID := strings.TrimSpace(chi.URLParam(r, "userID"))
 	if targetID == "" {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_PARAMETERS",
 				Message: "user id is required",
 			},
@@ -83,9 +84,9 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	newRole := domain.Role(body.NewRole)
 	if newRole != domain.RoleClient && newRole != domain.RoleAnalyst {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_INPUT_DATA",
 				Message: "invalid role value",
 				Details: map[string]string{
@@ -109,7 +110,7 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	if !result.SessionRevoked {
-		RespondJSON(w, http.StatusOK, &Response{
+		response.RespondJSON(w, http.StatusOK, &response.Response{
 			Success: true,
 			Data: map[string]any{
 				"message":         "role updated, but session revocation failed",
@@ -120,7 +121,7 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]any{
 			"message":         "role updated successfully",
@@ -133,57 +134,57 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 func (h *SwitchUserRoleHandler) handleUsecaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrUserIdNotFound):
-		RespondJSON(w, http.StatusNotFound, &Response{
+		response.RespondJSON(w, http.StatusNotFound, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_NOT_FOUND",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, usecase.ErrTargetUserNotFound):
-		RespondJSON(w, http.StatusNotFound, &Response{
+		response.RespondJSON(w, http.StatusNotFound, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "TARGET_USER_NOT_FOUND",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, usecase.ErrUnauthorizedAction), errors.Is(err, domain.ErrPermissionDenied):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "FORBIDDEN",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrUserDeactivated):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "DEACTIVATED_USER",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrUnableToSetAdmin):
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_ROLE",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrUnchangedRole):
-		RespondJSON(w, http.StatusConflict, &Response{
+		response.RespondJSON(w, http.StatusConflict, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNCHANGED_ROLE",
 				Message: err.Error(),
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "role switch failed",
 			},

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -31,9 +32,9 @@ func NewResendVerificationEmailHandler(uc ResendVerificationEmailUseCase) *Resen
 
 func (h *ResendVerificationEmailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -47,9 +48,9 @@ func (h *ResendVerificationEmailHandler) ServeHTTP(w http.ResponseWriter, r *htt
 	}
 
 	if !isResendCredentialsFormatOk(&resendVerificationCreds) {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_CREDENTIALS",
 				Message: "invalid credentials",
 			},
@@ -67,7 +68,7 @@ func (h *ResendVerificationEmailHandler) ServeHTTP(w http.ResponseWriter, r *htt
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]string{
 			"message": "verification email sent successfully",
@@ -92,33 +93,33 @@ func isResendCredentialsFormatOk(resendVerificationCreds *ResendVerificationCred
 func (h *ResendVerificationEmailHandler) handleUseCaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrEmptyEmail), errors.Is(err, usecase.ErrInvalidCredentials):
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_CREDENTIALS",
 				Message: "invalid credentials",
 			},
 		})
 	case errors.Is(err, domain.ErrUserDeactivated):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_DEACTIVATED",
 				Message: "profile is deactivated",
 			},
 		})
 	case errors.Is(err, usecase.ErrEmailAlreadyVerified):
-		RespondJSON(w, http.StatusConflict, &Response{
+		response.RespondJSON(w, http.StatusConflict, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_ALREADY_ACTIVATED",
 				Message: "profile is already activated",
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "resending verification message failed",
 			},

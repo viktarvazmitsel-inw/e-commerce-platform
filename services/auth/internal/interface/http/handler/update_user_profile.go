@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -32,9 +33,9 @@ func NewUpdateUserProfileHandler(uc UpdateUserProfileUseCase) *UpdateUserProfile
 
 func (h *UpdateUserProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -44,9 +45,9 @@ func (h *UpdateUserProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	userIDVal, ok := r.Context().Value("userID").(string)
 	if !ok {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: "user id is undefined",
 			},
@@ -55,9 +56,9 @@ func (h *UpdateUserProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 	userID := strings.TrimSpace(userIDVal)
 	if userID == "" {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: "user id is undefined",
 			},
@@ -72,9 +73,9 @@ func (h *UpdateUserProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	errorDetails := validateUpdateUserProfileBody(&body)
 	if len(errorDetails) > 0 {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_INPUT_DATA",
 				Message: "invalid input data",
 				Details: errorDetails,
@@ -94,7 +95,7 @@ func (h *UpdateUserProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]string{
 			"message": "profile updated successfully",
@@ -126,33 +127,33 @@ func validateUpdateUserProfileBody(body *UpdateUserProfileBody) map[string]strin
 func (h *UpdateUserProfileHandler) handleUseCaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrUserIdNotFound):
-		RespondJSON(w, http.StatusNotFound, &Response{
+		response.RespondJSON(w, http.StatusNotFound, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_NOT_FOUND",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrUserDeactivated):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "DEACTIVATED_USER",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, usecase.ErrUserEmailIsNotVerified):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNVERIFIED_EMAIL",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrEmptyName):
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_INPUT_DATA",
 				Message: err.Error(),
 				Details: map[string]string{
@@ -161,9 +162,9 @@ func (h *UpdateUserProfileHandler) handleUseCaseError(w http.ResponseWriter, err
 			},
 		})
 	case errors.Is(err, domain.ErrEmptySurname):
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_INPUT_DATA",
 				Message: err.Error(),
 				Details: map[string]string{
@@ -172,9 +173,9 @@ func (h *UpdateUserProfileHandler) handleUseCaseError(w http.ResponseWriter, err
 			},
 		})
 	case errors.Is(err, domain.ErrInvalidPhone):
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_INPUT_DATA",
 				Message: err.Error(),
 				Details: map[string]string{
@@ -183,9 +184,9 @@ func (h *UpdateUserProfileHandler) handleUseCaseError(w http.ResponseWriter, err
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "profile update failed",
 			},

@@ -1,105 +1,151 @@
 package main
 
 import (
-	"encoding/json"
+	"authorization/internal/config"
+	"authorization/internal/infrastructure/broker"
+	messageBroker "authorization/internal/infrastructure/broker"
+	"authorization/internal/infrastructure/db/postgre"
+	"authorization/internal/infrastructure/db/redis"
+	tokenStorage "authorization/internal/infrastructure/db/redis"
+	"authorization/internal/infrastructure/hasher"
+	coreLogger "authorization/internal/infrastructure/logger"
+	"authorization/internal/interface/http/handler"
+	"authorization/internal/interface/http/response"
+	"authorization/internal/usecase"
+	"context"
 	"log"
+	"log/slog"
 	"net/http"
+	"os"
 
-	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/joho/godotenv"
 )
 
-type App struct {
-	ch *amqp.Channel
-}
-
-type StdResponse struct {
-	Status string
+func init() {
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
 }
 
 func main() {
-	conn, err := amqp.Dial("amqp://guest:guest@broker:5672/")
+	logger := log.New(os.Stdout, "auth-back: ", log.LstdFlags)
+	logger.Println("Starting server on port 8080")
+
+	config := config.Load()
+	logger.Println("Config loaded")
+
+	ctx := context.Background()
+
+	dbConfig := &postgre.PostgresConfig{
+		User:     config.DatabaseUser,
+		Password: config.DatabasePassword,
+		Host:     config.DatabaseHost,
+		Port:     config.DatabasePort,
+		DBName:   config.DatabaseName,
+	}
+
+	db, err := postgre.NewPostgresPool(ctx, dbConfig)
 	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+		logger.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer conn.Close()
+	logger.Println("Database connected")
 
-	ch, err := conn.Channel()
+	userRepository := postgre.NewUserRepository(db)
+	logger.Println("User repository created")
+
+	redisConfig := &redis.RedisConfig{
+		Host:     config.RedisHost,
+		Port:     config.RedisPort,
+		Password: config.RedisPassword,
+		DB:       config.RedisDB,
+	}
+
+	cache, err := redis.NewRedisClient(ctx, redisConfig)
 	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
+		logger.Fatalf("Failed to connect to Redis: %v", err)
 	}
-	defer ch.Close()
+	logger.Println("Redis connected")
 
-	q, err := ch.QueueDeclare(
-		"test", // queue name
-		true,   // durable
-		false,  // delete when unused
-		false,  // exclusive
-		false,  // no-wait
-		amqp.Table{
-			amqp.QueueTypeArg: amqp.QueueTypeQuorum,
-		},
-	)
+	verificationTokenRepository := tokenStorage.NewVerificationTokenRepository(cache, config.VerificationTokenTTL)
+	logger.Println("Verification token storage created")
+
+	rmqConfig := &broker.RMQConfig{
+		Host:     config.RMQHost,
+		Port:     config.RMQPort,
+		User:     config.RMQUser,
+		Password: config.RMQPassword,
+	}
+
+	rmq, err := broker.NewConnection(ctx, rmqConfig)
 	if err != nil {
-		log.Fatalf("Failed to declare queue: %v", err)
+		logger.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
+	logger.Println("RabbitMQ connected")
 
-	app := &App{ch: ch}
+	passwordHasher := hasher.NewPasswordHasher(10)
+	logger.Println("Password hasher created")
 
-	http.HandleFunc("/api/auth", app.handleMain(q.Name))
-	http.HandleFunc("/api/auth/ping", handlePing)
+	coreLogger := coreLogger.NewLogger(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	logger.Println("Core logger created")
 
-	log.Println("Sender running on :8080...")
-	http.ListenAndServe(":8080", nil)
-}
-
-func handlePing(w http.ResponseWriter, r *http.Request) {
-	message := &StdResponse{Status: "Auth"}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(message); err != nil {
-		log.Printf("Encoding error: %v", err)
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
+	emailSender, err := messageBroker.NewEmailSender(ctx, rmq, coreLogger)
+	if err != nil {
+		logger.Fatalf("Failed to create email sender: %v", err)
 	}
-}
+	logger.Println("Email sender created")
 
-func (app *App) handleMain(queueName string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/auth" {
-			http.NotFound(w, r)
-			return
-		}
+	registerUserUseCase := usecase.NewRegisterUserUseCase(userRepository, emailSender, verificationTokenRepository, passwordHasher, coreLogger)
+	logger.Println("Register user use case created")
 
-		body := "Hello from Go Sender!"
+	registerUserHandler := handler.NewRegisterUserHandler(registerUserUseCase)
+	logger.Println("Register user handler created")
 
-		err := app.ch.Publish(
-			"",        // exchange
-			queueName, // routing key (queue name)
-			false,     // mandatory
-			false,     // immediate
-			amqp.Publishing{
-				ContentType: "text/plain",
-				Body:        []byte(body),
-			},
-		)
+	verifyUserUseCase := usecase.NewVerifyUserUseCase(userRepository, verificationTokenRepository, coreLogger)
+	logger.Println("Verify user use case created")
 
-		if err != nil {
-			log.Printf("Failed to publish message: %v", err)
-			http.Error(w, "Failed to send message", http.StatusInternalServerError)
-			return
-		}
+	verifyUserHandler := handler.NewVerifyUserHandler(verifyUserUseCase)
+	logger.Println("Verify user handler created")
 
-		message := &StdResponse{Status: "sent"}
+	resendVerificationEmailUseCase := usecase.NewResendVerificationEmailUseCase(verificationTokenRepository, userRepository, passwordHasher, emailSender)
+	logger.Println("Resend verification email use case created")
 
-		w.Header().Set("Content-Type", "application/json")
+	resendVerificationEmailHandler := handler.NewResendVerificationEmailHandler(resendVerificationEmailUseCase)
+	logger.Println("Resend verification email handler created")
 
-		if err := json.NewEncoder(w).Encode(message); err != nil {
-			log.Printf("Encoding error: %v", err)
-			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-			return
-		}
+	router := chi.NewRouter()
 
-		log.Println("Message successfully sent to RabbitMQ!")
-	}
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
+
+	router.Post("/api/auth/register", registerUserHandler.ServeHTTP)
+	router.Post("/api/auth/verify", verifyUserHandler.ServeHTTP)
+	router.Post("/api/auth/resend-verification-email", resendVerificationEmailHandler.ServeHTTP)
+
+	router.Route("/api/auth/check", func(r chi.Router) {
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			response.RespondJSON(w, http.StatusOK, &response.Response{
+				Success: true,
+				Data: map[string]string{
+					"message": "OK",
+				},
+			})
+		})
+	})
+
+	// router.Group(func(r chi.Router) {
+	// 	r.Use(accessVerificationMiddleware.VerifyAccess)
+	// 	r.Get("/api/auth/mwcheck", func(w http.ResponseWriter, r *http.Request) {
+	// 		response.RespondJSON(w, http.StatusOK, &response.Response{
+	// 			Success: true,
+	// 			Data: map[string]string{
+	// 				"message": "Middleware check passed",
+	// 			},
+	// 		})
+	// 	})
+	// })
+
+	http.ListenAndServe(":8080", router)
 }

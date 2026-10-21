@@ -22,20 +22,52 @@ func main() {
 	}
 	defer ch.Close()
 
+	if err := ch.ExchangeDeclare(
+		"email_exchange",
+		"direct",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	); err != nil {
+		log.Fatalf("Failed to declare exchange: %v", err)
+	}
+
 	// 3. Declare the queue
 	// Must match the exact settings/name used in the sender
 	q, err := ch.QueueDeclare(
-		"test", // queue name
-		true,        // durable
-		false,        // delete when unused
-		false,        // exclusive
-		false,        // no-wait
+		"email_queue", // queue name
+		true,          // durable
+		false,         // delete when unused
+		false,         // exclusive
+		false,         // no-wait
 		amqp.Table{
-            amqp.QueueTypeArg: amqp.QueueTypeQuorum,
-        },
+			amqp.QueueTypeArg: amqp.QueueTypeQuorum,
+		},
 	)
 	if err != nil {
 		log.Fatalf("Failed to declare queue: %v", err)
+	}
+
+	if err := ch.QueueBind(
+		q.Name,
+		"verification.mail",
+		"email_exchange",
+		false,
+		nil,
+	); err != nil {
+		log.Fatalf("Failed to bind queue: %v", err)
+	}
+
+	if err := ch.QueueBind(
+		q.Name,
+		"password_reset.mail",
+		"email_exchange",
+		false,
+		nil,
+	); err != nil {
+		log.Fatalf("Failed to bind queue: %v", err)
 	}
 
 	// 4. Register a consumer

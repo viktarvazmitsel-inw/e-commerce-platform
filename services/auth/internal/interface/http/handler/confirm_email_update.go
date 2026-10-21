@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -26,9 +27,9 @@ func NewConfirmEmailUpdateHandler(uc ConfirmEmailUpdateUseCase) *ConfirmEmailUpd
 
 func (h *ConfirmEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -43,9 +44,9 @@ func (h *ConfirmEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 
 	token := strings.TrimSpace(tokenData.Token)
 	if token == "" {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_UPDATE_TOKEN",
 				Message: "invalid update token",
 				Details: map[string]string{
@@ -64,7 +65,7 @@ func (h *ConfirmEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]any{
 			"message":         "email updated successfully",
@@ -76,9 +77,9 @@ func (h *ConfirmEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 func (h *ConfirmEmailUpdateHandler) handleUseCaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrInvalidUpdateEmailToken):
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_UPDATE_TOKEN",
 				Message: err.Error(),
 				Details: map[string]string{
@@ -87,33 +88,33 @@ func (h *ConfirmEmailUpdateHandler) handleUseCaseError(w http.ResponseWriter, er
 			},
 		})
 	case errors.Is(err, usecase.ErrUserIdNotFound):
-		RespondJSON(w, http.StatusNotFound, &Response{
+		response.RespondJSON(w, http.StatusNotFound, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "USER_NOT_FOUND",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrUserDeactivated):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "DEACTIVATED_USER",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, usecase.ErrEmailAlreadyTaken):
-		RespondJSON(w, http.StatusConflict, &Response{
+		response.RespondJSON(w, http.StatusConflict, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "EMAIL_ALREADY_TAKEN",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrInvalidEmail):
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_INPUT_DATA",
 				Message: err.Error(),
 				Details: map[string]string{
@@ -122,9 +123,9 @@ func (h *ConfirmEmailUpdateHandler) handleUseCaseError(w http.ResponseWriter, er
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "email update confirmation failed",
 			},

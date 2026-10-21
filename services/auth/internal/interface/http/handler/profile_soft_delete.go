@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -31,9 +32,9 @@ func NewProfileSoftDeleteHandler(uc ProfileSoftDeleteUseCase) *ProfileSoftDelete
 
 func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPatch {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -43,9 +44,9 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	userIDVal, ok := r.Context().Value("userID").(string)
 	if !ok {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: "author id is undefined",
 			},
@@ -54,9 +55,9 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 	authorID := strings.TrimSpace(userIDVal)
 	if authorID == "" {
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: "author id is undefined",
 			},
@@ -70,9 +71,9 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	errorsDetails := validateInputData(inputData)
 	if len(errorsDetails) > 0 {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_INPUT_DATA",
 				Message: "invalid input data",
 				Details: errorsDetails,
@@ -94,9 +95,9 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 
 	if !deletionResult.SessionRevoked {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "SESSION_HAS_NOT_BEEN_REVOKED",
 				Message: "session has not been revoked",
 				Details: map[string]string{
@@ -107,7 +108,7 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]any{
 			"message":         "deletion successful",
@@ -134,49 +135,49 @@ func validateInputData(inputData ProfileSoftDeleteInput) map[string]string {
 func (h *ProfileSoftDeleteHandler) handleUsecaseError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrUserIdNotFound):
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_INPUT_DATA",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, domain.ErrUserDeactivated):
-		RespondJSON(w, http.StatusForbidden, &Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "DEACTIVATED_USER",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, usecase.ErrInvalidPassword):
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_CREDENTIALS",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, usecase.ErrUnauthorizedAction):
-		RespondJSON(w, http.StatusUnauthorized, &Response{
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",
 				Message: err.Error(),
 			},
 		})
 	case errors.Is(err, usecase.ErrTargetUserNotFound):
-		RespondJSON(w, http.StatusNotFound, &Response{
+		response.RespondJSON(w, http.StatusNotFound, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "TARGET_USER_NOT_FOUND",
 				Message: err.Error(),
 			},
 		})
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_ERROR",
 				Message: "deletion failed",
 			},

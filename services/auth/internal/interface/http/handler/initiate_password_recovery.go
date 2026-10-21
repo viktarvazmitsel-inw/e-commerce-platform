@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
@@ -30,9 +31,9 @@ func NewInitiatePasswordRecoveryHandler(uc InitiatePasswordRecoveryUseCase) *Ini
 
 func (h *InitiatePasswordRecoveryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		RespondJSON(w, http.StatusMethodNotAllowed, &Response{
+		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "METHOD_NOT_ALLOWED",
 				Message: "method not allowed",
 			},
@@ -47,9 +48,9 @@ func (h *InitiatePasswordRecoveryHandler) ServeHTTP(w http.ResponseWriter, r *ht
 	passwordRecoveryBody.Email = strings.TrimSpace(passwordRecoveryBody.Email)
 	passwordRecoveryBody.Email = strings.ToLower(passwordRecoveryBody.Email)
 	if !domain.IsEmailValid(passwordRecoveryBody.Email) {
-		RespondJSON(w, http.StatusBadRequest, &Response{
+		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INVALID_EMAIL",
 				Message: "invalid email",
 			},
@@ -66,7 +67,7 @@ func (h *InitiatePasswordRecoveryHandler) ServeHTTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	RespondJSON(w, http.StatusOK, &Response{
+	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data:    map[string]string{"message": "check your email for password recovery instructions"},
 	})
@@ -77,15 +78,15 @@ func (h *InitiatePasswordRecoveryHandler) handleUsecaseError(w http.ResponseWrit
 	case errors.Is(err, usecase.ErrUserEmailNotFound),
 		errors.Is(err, usecase.ErrEmptyEmail),
 		errors.Is(err, domain.ErrUserDeactivated):
-		RespondJSON(w, http.StatusOK, &Response{
+		response.RespondJSON(w, http.StatusOK, &response.Response{
 			Success: true,
 			Data:    map[string]string{"message": "check your email for password recovery instructions"},
 		})
 		return
 	default:
-		RespondJSON(w, http.StatusInternalServerError, &Response{
+		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,
-			Errors: &APIError{
+			Errors: &response.APIError{
 				Code:    "INTERNAL_SERVER_ERROR",
 				Message: "failed to initiate password recovery",
 			},
