@@ -11,6 +11,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+type contextKey string
+
+const UserIDContextKey contextKey = "userID"
+
 type AccessVerificationMiddleware struct {
 	publicKey *rsa.PublicKey
 }
@@ -28,8 +32,22 @@ type CustomClaims struct {
 
 func (m *AccessVerificationMiddleware) VerifyAccess(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		accessToken := strings.TrimSpace(r.Header.Get("Authorization"))
+		header := strings.TrimSpace(r.Header.Get("Authorization"))
+		if header == "" {
+			response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
+				Success: false,
+				Errors: &response.APIError{
+					Code:    "UNAUTHORIZED",
+					Message: "unauthorized",
+				},
+			})
+			return
+		}
 
+		accessToken := header
+		if scheme, token, ok := strings.Cut(header, " "); ok && strings.EqualFold(scheme, "Bearer") {
+			accessToken = strings.TrimSpace(token)
+		}
 		if accessToken == "" {
 			response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 				Success: false,
@@ -82,7 +100,7 @@ func (m *AccessVerificationMiddleware) VerifyAccess(next http.Handler) http.Hand
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
+		ctx := context.WithValue(r.Context(), UserIDContextKey, claims.UserID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

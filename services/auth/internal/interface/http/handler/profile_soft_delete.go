@@ -42,28 +42,18 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	userIDVal, ok := r.Context().Value("userID").(string)
-	if !ok {
+	authorID, err := getUserIDFromContext(r.Context())
+	if err != nil {
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
 			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "author id is undefined",
+				Code:    "INVALID_PARAMETERS",
+				Message: err.Error(),
 			},
 		})
 		return
 	}
-	authorID := strings.TrimSpace(userIDVal)
-	if authorID == "" {
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "author id is undefined",
-			},
-		})
-		return
-	}
+
 	var inputData ProfileSoftDeleteInput
 	if !DecodeJSON(w, r, &inputData) {
 		return
@@ -83,7 +73,7 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 
 	softDeleteProfileInput := usecase.SoftDeleteProfileInput{
-		AuthorID: authorID,
+		AuthorID: strings.TrimSpace(authorID),
 		TargetID: strings.TrimSpace(inputData.TargetID),
 		Password: inputData.Password,
 	}

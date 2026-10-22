@@ -37,6 +37,18 @@ func (h *ConfirmEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	authorID, err := getUserIDFromContext(r.Context())
+	if err != nil {
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
+			Success: false,
+			Errors: &response.APIError{
+				Code:    "INVALID_PARAMETERS",
+				Message: err.Error(),
+			},
+		})
+		return
+	}
+
 	var tokenData TokenData
 	if !DecodeJSON(w, r, &tokenData) {
 		return
@@ -49,16 +61,14 @@ func (h *ConfirmEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 			Errors: &response.APIError{
 				Code:    "INVALID_UPDATE_TOKEN",
 				Message: "invalid update token",
-				Details: map[string]string{
-					"token": "invalid update token",
-				},
 			},
 		})
 		return
 	}
 
 	result, err := h.confirmEmailUpdate.Execute(r.Context(), usecase.ConfirmEmailUpdateInput{
-		Token: token,
+		AuthorID: strings.TrimSpace(authorID),
+		Token:    token,
 	})
 	if err != nil {
 		h.handleUseCaseError(w, err)

@@ -2,8 +2,17 @@ package handler
 
 import (
 	"authorization/internal/domain"
+	"authorization/internal/interface/http/middleware"
+	"context"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
+)
+
+var (
+	ErrUserIDUndefined = errors.New("user id is undefined")
+	ErrUserIDInvalid   = errors.New("user id is invalid")
 )
 
 const refreshTokenCookie = "refresh_token"
@@ -24,4 +33,19 @@ func setRefreshTokenCookie(w http.ResponseWriter, pair domain.TokenPair) {
 		Expires:  pair.RefreshTokenExpiresAt,
 		MaxAge:   maxAge,
 	})
+}
+
+func getUserIDFromContext(ctx context.Context) (string, error) {
+	id := ctx.Value(middleware.UserIDContextKey)
+
+	if id == nil {
+		return "", ErrUserIDUndefined
+	}
+
+	authorID, ok := id.(string)
+	if !ok || strings.TrimSpace(authorID) == "" {
+		return "", ErrUserIDInvalid
+	}
+
+	return authorID, nil
 }

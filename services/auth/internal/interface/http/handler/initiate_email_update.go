@@ -42,24 +42,13 @@ func (h *InitiateEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	userIDVal, ok := r.Context().Value("userID").(string)
-	if !ok {
+	userID, err := getUserIDFromContext(r.Context())
+	if err != nil {
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
 			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "user id is undefined",
-			},
-		})
-		return
-	}
-	userID := strings.TrimSpace(userIDVal)
-	if userID == "" {
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "user id is undefined",
+				Code:    "INVALID_PARAMETERS",
+				Message: err.Error(),
 			},
 		})
 		return
@@ -84,7 +73,7 @@ func (h *InitiateEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 	}
 
 	input := usecase.EmailUpdateInput{
-		ID:       userID,
+		ID:       strings.TrimSpace(userID),
 		Password: body.Password,
 		NewEmail: strings.TrimSpace(body.NewEmail),
 	}

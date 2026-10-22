@@ -39,24 +39,13 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	authorIDVal, ok := r.Context().Value("userID").(string)
-	if !ok {
+	authorID, err := getUserIDFromContext(r.Context())
+	if err != nil {
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
 			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "author id is undefined",
-			},
-		})
-		return
-	}
-	authorID := strings.TrimSpace(authorIDVal)
-	if authorID == "" {
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "author id is undefined",
+				Code:    "INVALID_PARAMETERS",
+				Message: err.Error(),
 			},
 		})
 		return
@@ -83,7 +72,7 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	newRole := domain.Role(body.NewRole)
-	if newRole != domain.RoleClient && newRole != domain.RoleAnalyst {
+	if newRole&domain.RoleAdmin == domain.RoleAdmin {
 		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
 			Errors: &response.APIError{

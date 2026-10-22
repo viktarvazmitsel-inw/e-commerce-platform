@@ -28,7 +28,7 @@ type GetUserProfileUseCase struct {
 	repo UserRepository
 }
 
-func NewGetUserUseCase(r UserRepository) *GetUserProfileUseCase {
+func NewGetUserProfileUseCase(r UserRepository) *GetUserProfileUseCase {
 	return &GetUserProfileUseCase{
 		repo: r,
 	}

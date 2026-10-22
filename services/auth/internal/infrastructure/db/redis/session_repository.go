@@ -61,7 +61,7 @@ func (r *SessionRepository) SaveTokenPair(ctx context.Context, userInfo *usecase
 		return err
 	}
 
-	if err = ClearUsersExpiredTokens(ctx, r.redisClient, redisKey); err != nil {
+	if err = clearUsersExpiredTokens(ctx, r.redisClient, redisKey); err != nil {
 		r.logger.Warn(ctx, "Failed to clear expired tokens", "error", err)
 	}
 
@@ -200,7 +200,7 @@ func (r *SessionRepository) GetRefreshTokenExpireTime(ctx context.Context, token
 	return int64(expireTime), nil
 }
 
-func ClearUsersExpiredTokens(ctx context.Context, client *redis.Client, redisKey string) error {
+func clearUsersExpiredTokens(ctx context.Context, client *redis.Client, redisKey string) error {
 	now := time.Now().Unix()
 	_, err := client.ZRemRangeByScore(ctx, redisKey, "-inf", fmt.Sprintf("%d", now)).Result()
 	if err != nil {

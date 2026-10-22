@@ -43,24 +43,13 @@ func (h *UpdateUserProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	userIDVal, ok := r.Context().Value("userID").(string)
-	if !ok {
+	userID, err := getUserIDFromContext(r.Context())
+	if err != nil {
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
 			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "user id is undefined",
-			},
-		})
-		return
-	}
-	userID := strings.TrimSpace(userIDVal)
-	if userID == "" {
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "user id is undefined",
+				Code:    "INVALID_PARAMETERS",
+				Message: err.Error(),
 			},
 		})
 		return
@@ -84,13 +73,12 @@ func (h *UpdateUserProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err := h.updateUserProfile.Execute(r.Context(), usecase.UpdateUserProfileInput{
+	if err := h.updateUserProfile.Execute(r.Context(), usecase.UpdateUserProfileInput{
 		ID:      userID,
 		Name:    body.Name,
 		Surname: body.Surname,
 		Phone:   body.Phone,
-	})
-	if err != nil {
+	}); err != nil {
 		h.handleUseCaseError(w, err)
 		return
 	}

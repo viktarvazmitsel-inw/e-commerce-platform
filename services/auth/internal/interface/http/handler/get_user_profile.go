@@ -39,13 +39,13 @@ func (h *GetUserProfileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	authorID := strings.TrimSpace(r.Context().Value("userID").(string))
-	if authorID == "" {
+	authorID, err := getUserIDFromContext(r.Context())
+	if err != nil {
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
 			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED_ACTION",
-				Message: "author id is undefined",
+				Code:    "INVALID_PARAMETERS",
+				Message: err.Error(),
 			},
 		})
 		return

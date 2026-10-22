@@ -2,7 +2,6 @@ package redis
 
 import (
 	"context"
-	"crypto/rsa"
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
@@ -16,8 +15,8 @@ func NewJwtKeyRepository(redis *redis.Client) *JwtKeyRepository {
 	return &JwtKeyRepository{redis: redis}
 }
 
-func (r *JwtKeyRepository) SavePublicKey(key *rsa.PublicKey) error {
-	storageKey := fmt.Sprintf("jwt:public_key:%s", key.N.String())
+func (r *JwtKeyRepository) SavePublicKey(key string) error {
+	storageKey := "jwt:public_key:current"
 
 	_, err := r.redis.Set(context.Background(), storageKey, key, 0).Result()
 	if err != nil {

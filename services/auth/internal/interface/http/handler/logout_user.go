@@ -19,8 +19,7 @@ type LogoutUserHandler struct {
 }
 
 type LogoutCredentials struct {
-	UserID       string `json:"user_id"`
-	RefreshToken string `json:"refresh_token"`
+	UserID string `json:"user_id"`
 }
 
 func NewLogoutUserHandler(uc LogoutUserUseCase) *LogoutUserHandler {
@@ -41,6 +40,18 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cookie, err := r.Cookie(refreshTokenCookie)
+	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
+			Success: false,
+			Errors: &response.APIError{
+				Code:    "INVALID_REFRESH_TOKEN",
+				Message: "invalid or expired refresh token",
+			},
+		})
+		return
+	}
+
 	var creds LogoutCredentials
 	if !DecodeJSON(w, r, &creds) {
 		return
@@ -51,7 +62,7 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Success: false,
 			Errors: &response.APIError{
 				Code:    "INVALID_PARAMETERS",
-				Message: "user_id and token are required",
+				Message: "user_id is required",
 			},
 		})
 		return
@@ -59,13 +70,15 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	logoutInput := usecase.LogoutUserInput{
 		UserID: strings.TrimSpace(creds.UserID),
-		Token:  strings.TrimSpace(creds.RefreshToken),
+		Token:  cookie.Value,
 	}
 
 	if err := h.logoutUser.Execute(r.Context(), logoutInput); err != nil {
 		h.handleUseCaseError(w, err)
 		return
 	}
+
+	clearRefreshTokenCookie(w)
 
 	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
@@ -76,13 +89,7 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func isLogoutCredentialsFormatOk(creds LogoutCredentials) bool {
-	if strings.TrimSpace(creds.UserID) == "" {
-		return false
-	}
-	if strings.TrimSpace(creds.RefreshToken) == "" {
-		return false
-	}
-	return true
+	return strings.TrimSpace(creds.UserID) != ""
 }
 
 func (h *LogoutUserHandler) handleUseCaseError(w http.ResponseWriter, err error) {
@@ -96,6 +103,7 @@ func (h *LogoutUserHandler) handleUseCaseError(w http.ResponseWriter, err error)
 			},
 		})
 	case errors.Is(err, usecase.ErrInvalidRefreshToken):
+		clearRefreshTokenCookie(w)
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
 			Errors: &response.APIError{

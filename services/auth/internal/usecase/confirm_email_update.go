@@ -1,15 +1,17 @@
 package usecase
 
 import (
-	"authorization/internal/domain/security"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
+
+	"authorization/internal/domain/security"
 )
 
 type ConfirmEmailUpdateInput struct {
-	Token string
+	AuthorID string
+	Token    string
 }
 
 type ConfirmEmailUpdateResult struct {
@@ -45,10 +47,19 @@ func (uc *ConfirmEmailUpdateUseCase) Execute(ctx context.Context, input ConfirmE
 		return ConfirmEmailUpdateResult{}, ErrInvalidUpdateEmailToken
 	}
 
+	authorID := strings.TrimSpace(input.AuthorID)
+	if authorID == "" {
+		return ConfirmEmailUpdateResult{}, ErrUnauthorizedAction
+	}
+
 	hashedToken := security.HashToken(trimmedToken)
 	tokenData, err := uc.emailTokenStorage.LoadEmailUpdateToken(ctx, hashedToken)
 	if err != nil {
 		return ConfirmEmailUpdateResult{}, ErrInvalidUpdateEmailToken
+	}
+
+	if authorID != tokenData.UserID {
+		return ConfirmEmailUpdateResult{}, ErrUnauthorizedAction
 	}
 
 	userEntity, err := uc.repo.GetUserByID(ctx, tokenData.UserID)
