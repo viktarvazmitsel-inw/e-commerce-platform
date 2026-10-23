@@ -1,13 +1,22 @@
 package main
 
 import (
+	"context"
+	"log"
+	"log/slog"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/joho/godotenv"
+
 	"authorization/internal/config"
-	"authorization/internal/infrastructure/auth"
+	authToken "authorization/internal/infrastructure/auth"
 	"authorization/internal/infrastructure/broker"
-	messageBroker "authorization/internal/infrastructure/broker"
 	"authorization/internal/infrastructure/db/postgre"
 	"authorization/internal/infrastructure/db/redis"
-	tokenStorage "authorization/internal/infrastructure/db/redis"
 	"authorization/internal/infrastructure/hasher"
 	coreLogger "authorization/internal/infrastructure/logger"
 	jwtToken "authorization/internal/infrastructure/token"
@@ -15,23 +24,7 @@ import (
 	middlewares "authorization/internal/interface/http/middleware"
 	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
-	"context"
-	"log"
-	"log/slog"
-	"net/http"
-	"os"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/joho/godotenv"
 )
-
-func init() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
-}
 
 func main() {
 	logger := log.New(os.Stdout, "auth-back: ", log.LstdFlags)
@@ -40,10 +33,18 @@ func main() {
 	coreLogger := coreLogger.NewLogger(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 	logger.Println("Core logger created")
 
+	err := godotenv.Load(".env")
+	if err != nil {
+		logger.Printf("Error loading .env file: %v", err)
+	}
+
 	config := config.Load()
 	logger.Println("Config loaded")
 
 	ctx := context.Background()
+
+	initCtx, initCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer initCancel()
 
 	dbConfig := &postgre.PostgresConfig{
 		User:     config.DatabaseUser,
@@ -53,7 +54,7 @@ func main() {
 		DBName:   config.DatabaseName,
 	}
 
-	db, err := postgre.NewPostgresPool(ctx, dbConfig)
+	db, err := postgre.NewPostgresPool(initCtx, dbConfig)
 	if err != nil {
 		logger.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -70,27 +71,29 @@ func main() {
 		DB:       config.RedisDB,
 	}
 
-	cache, err := redis.NewRedisClient(ctx, redisConfig)
+	cache, err := redis.NewRedisClient(initCtx, redisConfig)
 	if err != nil {
 		logger.Fatalf("Failed to connect to Redis: %v", err)
 	}
 	logger.Println("Redis connected")
 
-	jwtKeyRepository := redis.NewJwtKeyRepository(cache)
-
-	jwtKeyLoader := auth.NewJwtKeyLoader(jwtKeyRepository)
-
-	privateKey, err := jwtKeyLoader.LoadPrivateKey(config.TokenPrivateKeyPath)
+	privateKey, err := authToken.LoadPrivateKey(config.TokenPrivateKeyPath)
 	if err != nil {
 		logger.Fatalf("Failed to load private key: %v", err)
 	}
 	logger.Println("Private key loaded")
 
-	publicKey, err := jwtKeyLoader.LoadPublicKey(config.TokenPublicKeyPath)
+	publicKey, err := authToken.LoadPublicKey(config.TokenPublicKeyPath)
 	if err != nil {
 		logger.Fatalf("Failed to load public key: %v", err)
 	}
 	logger.Println("Public key loaded")
+
+	err = authToken.ValidateKeys(privateKey, publicKey)
+	if err != nil {
+		logger.Fatalf("Failed to validate keys: %v", err)
+	}
+	logger.Println("Keys validated")
 
 	tokenGenerator, err := jwtToken.NewJWTGenerator(privateKey, config.RefreshTokenTTL, config.AccessTokenTTL)
 	if err != nil {
@@ -98,15 +101,15 @@ func main() {
 	}
 	logger.Println("Token generator created")
 
-	verificationTokenRepository := tokenStorage.NewVerificationTokenRepository(cache, config.VerificationTokenTTL)
+	verificationTokenRepository := redis.NewVerificationTokenRepository(cache, config.VerificationTokenTTL)
 	logger.Println("Verification token storage created")
 
-	userDataUpdateTokenRepository := tokenStorage.NewUserDataUpdateTokenRepository(cache, config.ResetTokenTTL)
+	userDataUpdateTokenRepository := redis.NewUserDataUpdateTokenRepository(cache, config.ResetTokenTTL)
 	logger.Println("User data update token storage created")
 
 	tokenDataExtractor := jwtToken.NewDataExtractor(publicKey)
 
-	sessionStorage := tokenStorage.NewSessionRepository(cache, config.RefreshTokenTTL, coreLogger, tokenDataExtractor)
+	sessionStorage := redis.NewSessionRepository(cache, config.RefreshTokenTTL, coreLogger, tokenDataExtractor)
 	logger.Println("Session storage created")
 
 	rmqConfig := &broker.RMQConfig{
@@ -116,7 +119,7 @@ func main() {
 		Password: config.RMQPassword,
 	}
 
-	rmq, err := broker.NewConnection(ctx, rmqConfig)
+	rmq, err := broker.NewConnection(initCtx, rmqConfig)
 	if err != nil {
 		logger.Fatalf("Failed to connect to RabbitMQ: %v", err)
 	}
@@ -125,7 +128,7 @@ func main() {
 	passwordHasher := hasher.NewPasswordHasher(10)
 	logger.Println("Password hasher created")
 
-	emailSender, err := messageBroker.NewEmailSender(ctx, rmq, coreLogger)
+	emailSender, err := broker.NewEmailSender(ctx, rmq, coreLogger)
 	if err != nil {
 		logger.Fatalf("Failed to create email sender: %v", err)
 	}
