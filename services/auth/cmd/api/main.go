@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -22,13 +26,11 @@ import (
 	jwtToken "authorization/internal/infrastructure/token"
 	"authorization/internal/interface/http/handler"
 	middlewares "authorization/internal/interface/http/middleware"
-	"authorization/internal/interface/http/response"
 	"authorization/internal/usecase"
 )
 
 func main() {
 	logger := log.New(os.Stdout, "auth-back: ", log.LstdFlags)
-	logger.Println("Starting server on port 8080")
 
 	coreLogger := coreLogger.NewLogger(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 	logger.Println("Core logger created")
@@ -42,6 +44,12 @@ func main() {
 	logger.Println("Config loaded")
 
 	ctx := context.Background()
+
+	appCtx, appCancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer appCancel()
+
+	reqCtx, cancelRequests := context.WithCancel(ctx)
+	defer cancelRequests()
 
 	initCtx, initCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer initCancel()
@@ -263,19 +271,58 @@ func main() {
 		r.Patch("/api/auth/switch-user-role/{userID}", switchUserRoleHandler.ServeHTTP)
 	})
 
-	router.Route("/api/auth/check", func(r chi.Router) {
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			response.RespondJSON(w, http.StatusOK, &response.Response{
-				Success: true,
-				Data: map[string]string{
-					"message": "OK",
-				},
-			})
-		})
-	})
-
-	err = http.ListenAndServe(":8080", router)
-	if err != nil {
-		logger.Fatalf("Failed to start server: %v", err)
+	type Server struct {
+		router *chi.Mux
+		server *http.Server
 	}
+
+	serverConnection := &Server{
+		router: router,
+		server: &http.Server{
+			Addr:    ":8080",
+			Handler: router,
+			BaseContext: func(_ net.Listener) context.Context {
+				return reqCtx
+			},
+		},
+	}
+
+	go func() {
+		logger.Println("Starting server on port 8080")
+		if err := serverConnection.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Printf("Failed to start server: %v", err)
+			appCancel()
+		}
+	}()
+
+	<-appCtx.Done()
+	logger.Println("Gracefully Shutting down...")
+
+	shutDownCtx, shutDownCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer shutDownCancel()
+
+	if err := serverConnection.server.Shutdown(shutDownCtx); err != nil {
+		logger.Printf("Failed to shutdown server gracefully: %v", err)
+		cancelRequests()
+		time.Sleep(1 * time.Second)
+	} else {
+		logger.Println("Server gracefully shut down")
+	}
+
+	if err := cache.Close(); err != nil {
+		logger.Printf("Failed to close Redis connection: %v", err)
+	} else {
+		logger.Println("Redis connection closed")
+	}
+
+	if err := rmq.Close(); err != nil {
+		logger.Printf("Failed to close RabbitMQ connection: %v", err)
+	} else {
+		logger.Println("RabbitMQ connection closed")
+	}
+
+	db.Close()
+	logger.Println("Database connection closed")
+
+	logger.Println("Application shut down")
 }
