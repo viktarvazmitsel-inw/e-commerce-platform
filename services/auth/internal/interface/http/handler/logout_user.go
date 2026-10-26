@@ -52,24 +52,20 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var creds LogoutCredentials
-	if !DecodeJSON(w, r, &creds) {
-		return
-	}
-
-	if !isLogoutCredentialsFormatOk(creds) {
-		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
+	userID, err := getUserIDFromContext(r.Context())
+	if err != nil {
+		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
 			Errors: &response.APIError{
-				Code:    "INVALID_PARAMETERS",
-				Message: "user_id is required",
+				Code:    "UNAUTHORIZED",
+				Message: "unauthorized",
 			},
 		})
 		return
 	}
 
 	logoutInput := usecase.LogoutUserInput{
-		UserID: strings.TrimSpace(creds.UserID),
+		UserID: userID,
 		Token:  cookie.Value,
 	}
 

@@ -13,4 +13,5 @@ var (
 	ErrUnableToSetAdmin = errors.New("unable to set admin role")
 	ErrUnchangedRole    = errors.New("role didn't change")
 	ErrUserDeactivated  = errors.New("profile deleted")
+	ErrInvalidRole      = errors.New("invalid role")
 )

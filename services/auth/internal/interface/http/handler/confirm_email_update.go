@@ -132,6 +132,14 @@ func (h *ConfirmEmailUpdateHandler) handleUseCaseError(w http.ResponseWriter, er
 				},
 			},
 		})
+	case errors.Is(err, usecase.ErrUnauthorizedAction):
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
+			Success: false,
+			Errors: &response.APIError{
+				Code:    "FORBIDDEN",
+				Message: err.Error(),
+			},
+		})
 	default:
 		response.RespondJSON(w, http.StatusInternalServerError, &response.Response{
 			Success: false,

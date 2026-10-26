@@ -72,19 +72,6 @@ func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	newRole := domain.Role(body.NewRole)
-	if newRole&domain.RoleAdmin == domain.RoleAdmin {
-		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "INVALID_INPUT_DATA",
-				Message: "invalid role value",
-				Details: map[string]string{
-					"new_role": "must be a valid non-admin role",
-				},
-			},
-		})
-		return
-	}
 
 	input := usecase.SwitchUserRoleInput{
 		AuthorID: authorID,
@@ -154,7 +141,7 @@ func (h *SwitchUserRoleHandler) handleUsecaseError(w http.ResponseWriter, err er
 				Message: err.Error(),
 			},
 		})
-	case errors.Is(err, domain.ErrUnableToSetAdmin):
+	case errors.Is(err, domain.ErrUnableToSetAdmin), errors.Is(err, domain.ErrInvalidRole):
 		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
 			Errors: &response.APIError{

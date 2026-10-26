@@ -34,7 +34,7 @@ func Load() *Config {
 		ResetTokenTTL:        getEnvAsDuration("RESET_TOKEN_TTL", 15*time.Minute),
 		VerificationTokenTTL: getEnvAsDuration("VERIFICATION_TOKEN_TTL", 24*time.Hour),
 		AccessTokenTTL:       getEnvAsDuration("ACCESS_TOKEN_TTL", 15*time.Minute),
-		RefreshTokenTTL:      getEnvAsDuration("REFRESH_TOKEN_TTL", 162*time.Hour),
+		RefreshTokenTTL:      getEnvAsDuration("REFRESH_TOKEN_TTL", 168*time.Hour),
 		DatabaseUser:         os.Getenv("DATABASE_USER"),
 		DatabasePassword:     os.Getenv("DATABASE_PASSWORD"),
 		DatabaseName:         os.Getenv("DATABASE_NAME"),

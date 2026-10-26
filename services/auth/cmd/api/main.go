@@ -116,6 +116,7 @@ func main() {
 	logger.Println("User data update token storage created")
 
 	tokenDataExtractor := jwtToken.NewDataExtractor(publicKey)
+	logger.Println("Token data extractor created")
 
 	sessionStorage := redis.NewSessionRepository(cache, config.RefreshTokenTTL, coreLogger, tokenDataExtractor)
 	logger.Println("Session storage created")
@@ -245,7 +246,9 @@ func main() {
 	logger.Println("Public key handler created")
 
 	router := chi.NewRouter()
-	accessVerificationMiddleware := middlewares.NewAccessVerificationMiddleware(publicKey)
+	accessVerificationMiddleware := middlewares.NewAccessVerificationMiddleware(tokenDataExtractor)
+	logger.Println("Access verification middleware created")
+
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
@@ -279,8 +282,12 @@ func main() {
 	serverConnection := &Server{
 		router: router,
 		server: &http.Server{
-			Addr:    ":8080",
-			Handler: router,
+			Addr:              ":8080",
+			Handler:           router,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      15 * time.Second,
+			IdleTimeout:       60 * time.Second,
 			BaseContext: func(_ net.Listener) context.Context {
 				return reqCtx
 			},

@@ -35,7 +35,13 @@ func LoadPrivateKey(path string) (*rsa.PrivateKey, error) {
 		if err != nil {
 			return nil, ErrFailedToParsePrivateKey
 		}
-		return parsedKey.(*rsa.PrivateKey), nil
+
+		rsaKey, ok := parsedKey.(*rsa.PrivateKey)
+		if !ok {
+			return nil, ErrFailedToParsePrivateKey
+		}
+
+		return rsaKey, nil
 	}
 
 	return key, nil
@@ -57,8 +63,10 @@ func LoadPublicKey(path string) (*rsa.PublicKey, error) {
 		return nil, ErrFailedToParsePublicKey
 	}
 
-	publicKey := key.(*rsa.PublicKey)
-
+	publicKey, ok := key.(*rsa.PublicKey)
+	if !ok {
+		return nil, ErrFailedToParsePublicKey
+	}
 	return publicKey, nil
 }
 

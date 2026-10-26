@@ -85,14 +85,12 @@ func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 
 	if !deletionResult.SessionRevoked {
-		response.RespondJSON(w, http.StatusBadRequest, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "SESSION_HAS_NOT_BEEN_REVOKED",
-				Message: "session has not been revoked",
-				Details: map[string]string{
-					"target_id": inputData.TargetID,
-				},
+		response.RespondJSON(w, http.StatusOK, &response.Response{
+			Success: true,
+			Data: map[string]any{
+				"message":         "deletion successful, but session revocation failed",
+				"target_id":       deletionResult.TargetID,
+				"session_revoked": false,
 			},
 		})
 		return
@@ -149,7 +147,7 @@ func (h *ProfileSoftDeleteHandler) handleUsecaseError(w http.ResponseWriter, err
 			},
 		})
 	case errors.Is(err, usecase.ErrUnauthorizedAction):
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
+		response.RespondJSON(w, http.StatusForbidden, &response.Response{
 			Success: false,
 			Errors: &response.APIError{
 				Code:    "UNAUTHORIZED_ACTION",

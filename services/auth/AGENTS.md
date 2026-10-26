@@ -75,7 +75,7 @@ type LoginUserUseCase interface {
 `ServeHTTP` order:
 
 1. Reject the wrong HTTP method with `405` and `METHOD_NOT_ALLOWED`.
-2. Read the authenticated user id from `r.Context().Value("userID").(string)` when the route requires it. Missing or blank id is `401`.
+2. Read the authenticated user id with `getUserIDFromContext(r.Context())` (backed by `middleware.UserIDContextKey`) when the route requires it. Missing or blank id is `401`.
 3. Decode the body with `DecodeJSON`. It enforces a 1 MiB limit.
 4. Validate transport shape (required fields, length, email format via `domain.IsEmailValid`). Field errors go in `APIError.Details`.
 5. Trim strings, build the use-case input, call `Execute`.
