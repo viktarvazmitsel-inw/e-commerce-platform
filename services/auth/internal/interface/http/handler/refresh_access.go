@@ -25,17 +25,6 @@ func NewRefreshAccessHandler(uc RefreshAccessUseCase) *RefreshAccessHandler {
 }
 
 func (h *RefreshAccessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "METHOD_NOT_ALLOWED",
-				Message: "method not allowed",
-			},
-		})
-		return
-	}
-
 	cookie, err := r.Cookie(refreshTokenCookie)
 	if err != nil || cookie.Value == "" {
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{

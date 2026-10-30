@@ -9,9 +9,7 @@ import (
 	"authorization/internal/interface/http/response"
 )
 
-type contextKey string
-
-const UserIDContextKey contextKey = "userID"
+const UserIDContextKey = "userID"
 
 type AccessDataExtractor interface {
 	GetDataByAccessToken(ctx context.Context, accessToken string) (*token.CustomClaims, error)

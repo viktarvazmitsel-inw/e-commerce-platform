@@ -22,6 +22,7 @@ import (
 	"authorization/internal/infrastructure/db/postgre"
 	"authorization/internal/infrastructure/db/redis"
 	"authorization/internal/infrastructure/hasher"
+	"authorization/internal/infrastructure/healthcheck"
 	coreLogger "authorization/internal/infrastructure/logger"
 	jwtToken "authorization/internal/infrastructure/token"
 	"authorization/internal/interface/http/handler"
@@ -143,7 +144,13 @@ func main() {
 	}
 	logger.Println("Email sender created")
 
-	registerUserUseCase := usecase.NewRegisterUserUseCase(userRepository, emailSender, verificationTokenRepository, passwordHasher, coreLogger)
+	registerUserUseCase := usecase.NewRegisterUserUseCase(
+		userRepository,
+		emailSender,
+		verificationTokenRepository,
+		passwordHasher,
+		coreLogger,
+	)
 	logger.Println("Register user use case created")
 
 	registerUserHandler := handler.NewRegisterUserHandler(registerUserUseCase)
@@ -155,25 +162,45 @@ func main() {
 	verifyUserHandler := handler.NewVerifyUserHandler(verifyUserUseCase)
 	logger.Println("Verify user handler created")
 
-	resendVerificationEmailUseCase := usecase.NewResendVerificationEmailUseCase(verificationTokenRepository, userRepository, passwordHasher, emailSender)
+	resendVerificationEmailUseCase := usecase.NewResendVerificationEmailUseCase(
+		verificationTokenRepository,
+		userRepository,
+		passwordHasher,
+		emailSender,
+	)
 	logger.Println("Resend verification email use case created")
 
 	resendVerificationEmailHandler := handler.NewResendVerificationEmailHandler(resendVerificationEmailUseCase)
 	logger.Println("Resend verification email handler created")
 
-	initiatePasswordRecoveryUseCase := usecase.NewInitiatePasswordRecoveryUseCase(userRepository, userDataUpdateTokenRepository, emailSender)
+	initiatePasswordRecoveryUseCase := usecase.NewInitiatePasswordRecoveryUseCase(
+		userRepository,
+		userDataUpdateTokenRepository,
+		emailSender,
+	)
 	logger.Println("Initiate password recovery use case created")
 
 	initiatePasswordRecoveryHandler := handler.NewInitiatePasswordRecoveryHandler(initiatePasswordRecoveryUseCase)
 	logger.Println("Initiate password recovery handler created")
 
-	confirmPasswordRecoveryUseCase := usecase.NewConfirmPasswordRecoveryUseCase(userRepository, userDataUpdateTokenRepository, passwordHasher, sessionStorage, coreLogger)
+	confirmPasswordRecoveryUseCase := usecase.NewConfirmPasswordRecoveryUseCase(
+		userRepository,
+		userDataUpdateTokenRepository,
+		passwordHasher,
+		sessionStorage,
+		coreLogger,
+	)
 	logger.Println("Confirm password recovery use case created")
 
 	confirmPasswordRecoveryHandler := handler.NewConfirmPasswordRecoveryHandler(confirmPasswordRecoveryUseCase)
 	logger.Println("Confirm password recovery handler created")
 
-	loginUserUseCase := usecase.NewLoginUserUseCase(userRepository, sessionStorage, tokenGenerator, passwordHasher)
+	loginUserUseCase := usecase.NewLoginUserUseCase(
+		userRepository,
+		sessionStorage,
+		tokenGenerator,
+		passwordHasher,
+	)
 	logger.Println("Login user use case created")
 
 	loginUserHandler := handler.NewLoginUserHandler(loginUserUseCase)
@@ -191,25 +218,44 @@ func main() {
 	getUserHandler := handler.NewGetUserProfileHandler(getUserUseCase)
 	logger.Println("Get user handler created")
 
-	initiateEmailUpdateUseCase := usecase.NewInitiateEmailUpdateUseCase(userRepository, emailSender, userDataUpdateTokenRepository, passwordHasher)
+	initiateEmailUpdateUseCase := usecase.NewInitiateEmailUpdateUseCase(
+		userRepository,
+		emailSender,
+		userDataUpdateTokenRepository,
+		passwordHasher,
+	)
 	logger.Println("Initiate email update use case created")
 
 	initiateEmailUpdateHandler := handler.NewInitiateEmailUpdateHandler(initiateEmailUpdateUseCase)
 	logger.Println("Initiate email update handler created")
 
-	confirmEmailUpdateUseCase := usecase.NewConfirmEmailUpdateUseCase(userRepository, userDataUpdateTokenRepository, sessionStorage, coreLogger)
+	confirmEmailUpdateUseCase := usecase.NewConfirmEmailUpdateUseCase(
+		userRepository,
+		userDataUpdateTokenRepository,
+		sessionStorage,
+		coreLogger,
+	)
 	logger.Println("Confirm email update use case created")
 
 	confirmEmailUpdateHandler := handler.NewConfirmEmailUpdateHandler(confirmEmailUpdateUseCase)
 	logger.Println("Confirm email update handler created")
 
-	passwordUpdateUseCase := usecase.NewPasswordUpdateUseCase(userRepository, sessionStorage, passwordHasher, coreLogger)
+	passwordUpdateUseCase := usecase.NewPasswordUpdateUseCase(
+		userRepository,
+		sessionStorage,
+		passwordHasher,
+		coreLogger,
+	)
 	logger.Println("Password update use case created")
 
 	passwordUpdateHandler := handler.NewPasswordUpdateHandler(passwordUpdateUseCase)
 	logger.Println("Password update handler created")
 
-	refreshAccessUseCase := usecase.NewRefreshAccessUseCase(userRepository, sessionStorage, tokenGenerator)
+	refreshAccessUseCase := usecase.NewRefreshAccessUseCase(
+		userRepository,
+		sessionStorage,
+		tokenGenerator,
+	)
 	logger.Println("Refresh access use case created")
 
 	refreshAccessHandler := handler.NewRefreshAccessHandler(refreshAccessUseCase)
@@ -221,7 +267,12 @@ func main() {
 	updateUserProfileHandler := handler.NewUpdateUserProfileHandler(updateUserProfileUseCase)
 	logger.Println("Update user profile handler created")
 
-	profileSoftDeleteUseCase := usecase.NewProfileSoftDeleteUseCase(userRepository, sessionStorage, passwordHasher, coreLogger)
+	profileSoftDeleteUseCase := usecase.NewProfileSoftDeleteUseCase(
+		userRepository,
+		sessionStorage,
+		passwordHasher,
+		coreLogger,
+	)
 	logger.Println("Profile soft delete use case created")
 
 	profileSoftDeleteHandler := handler.NewProfileSoftDeleteHandler(profileSoftDeleteUseCase)
@@ -233,7 +284,11 @@ func main() {
 	listUsersHandler := handler.NewListUsersHandler(listUsersUseCase)
 	logger.Println("List users handler created")
 
-	switchUserRoleUseCase := usecase.NewSwitchUserRoleUseCase(userRepository, sessionStorage, coreLogger)
+	switchUserRoleUseCase := usecase.NewSwitchUserRoleUseCase(
+		userRepository,
+		sessionStorage,
+		coreLogger,
+	)
 	logger.Println("Switch user role use case created")
 
 	switchUserRoleHandler := handler.NewSwitchUserRoleHandler(switchUserRoleUseCase)
@@ -244,6 +299,31 @@ func main() {
 		logger.Fatalf("Failed to create public key handler: %v", err)
 	}
 	logger.Println("Public key handler created")
+
+	readyzHealthcheck := healthcheck.NewReadyzHealthcheck(db, cache, rmq)
+	logger.Println("Readyz healthcheck created")
+
+	readyzHealthcheckHandler := handler.NewHealthcheckHandler(readyzHealthcheck)
+	logger.Println("Readyz healthcheck handler created")
+
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				healthCheckCtx, healthCheckCancel := context.WithTimeout(appCtx, 1*time.Second)
+
+				readyzHealthcheck.Check(healthCheckCtx)
+
+				healthCheckCancel()
+				logger.Println(readyzHealthcheck.IsHealthy())
+			case <-appCtx.Done():
+				return
+			}
+		}
+	}()
 
 	router := chi.NewRouter()
 	accessVerificationMiddleware := middlewares.NewAccessVerificationMiddleware(tokenDataExtractor)
@@ -260,18 +340,23 @@ func main() {
 	router.Post("/api/auth/login", loginUserHandler.ServeHTTP)
 	router.Post("/api/auth/refresh-access", refreshAccessHandler.ServeHTTP)
 	router.Get("/api/auth/public-key", publicKeyHandler.ServeHTTP)
+	router.Get("/api/livez", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+	router.Get("/api/readyz", readyzHealthcheckHandler.ServeHTTP)
 
 	router.Group(func(r chi.Router) {
 		r.Use(accessVerificationMiddleware.VerifyAccess)
-		r.Get("/api/auth/profile/{userID}", getUserHandler.ServeHTTP)
-		r.Post("/api/auth/logout", logoutUserHandler.ServeHTTP)
-		r.Post("/api/auth/initiate-email-update", initiateEmailUpdateHandler.ServeHTTP)
-		r.Post("/api/auth/confirm-email-update", confirmEmailUpdateHandler.ServeHTTP)
-		r.Patch("/api/auth/password-update", passwordUpdateHandler.ServeHTTP)
-		r.Patch("/api/auth/update-user-profile", updateUserProfileHandler.ServeHTTP)
-		r.Patch("/api/auth/profile-soft-delete", profileSoftDeleteHandler.ServeHTTP)
-		r.Get("/api/auth/list-users", listUsersHandler.ServeHTTP)
-		r.Patch("/api/auth/switch-user-role/{userID}", switchUserRoleHandler.ServeHTTP)
+		r.Get("/api/auth/profile/{userID}", handler.WithUserID(getUserHandler.HandlerWithUserID))
+		r.Post("/api/auth/logout", handler.WithUserID(logoutUserHandler.HandlerWithUserID))
+		r.Post("/api/auth/initiate-email-update", handler.WithUserID(initiateEmailUpdateHandler.HandlerWithUserID))
+		r.Post("/api/auth/confirm-email-update", handler.WithUserID(confirmEmailUpdateHandler.HandlerWithUserID))
+		r.Patch("/api/auth/password-update", handler.WithUserID(passwordUpdateHandler.HandlerWithUserID))
+		r.Patch("/api/auth/update-user-profile", handler.WithUserID(updateUserProfileHandler.HandlerWithUserID))
+		r.Patch("/api/auth/profile-soft-delete", handler.WithUserID(profileSoftDeleteHandler.HandlerWithUserID))
+		r.Get("/api/auth/list-users", handler.WithUserID(listUsersHandler.HandlerWithUserID))
+		r.Patch("/api/auth/switch-user-role/{userID}", handler.WithUserID(switchUserRoleHandler.HandlerWithUserID))
 	})
 
 	type Server struct {
@@ -295,6 +380,7 @@ func main() {
 	}
 
 	go func() {
+
 		logger.Println("Starting server on port 8080")
 		if err := serverConnection.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Printf("Failed to start server: %v", err)

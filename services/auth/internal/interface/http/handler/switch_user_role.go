@@ -27,30 +27,7 @@ func NewSwitchUserRoleHandler(uc SwitchUserRoleUseCase) *SwitchUserRoleHandler {
 	}
 }
 
-func (h *SwitchUserRoleHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "METHOD_NOT_ALLOWED",
-				Message: "method not allowed",
-			},
-		})
-		return
-	}
-
-	authorID, err := getUserIDFromContext(r.Context())
-	if err != nil {
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "INVALID_PARAMETERS",
-				Message: err.Error(),
-			},
-		})
-		return
-	}
-
+func (h *SwitchUserRoleHandler) HandlerWithUserID(w http.ResponseWriter, r *http.Request, authorID string) {
 	targetID := strings.TrimSpace(chi.URLParam(r, "userID"))
 	if targetID == "" {
 		response.RespondJSON(w, http.StatusBadRequest, &response.Response{

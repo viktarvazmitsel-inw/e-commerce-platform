@@ -40,17 +40,6 @@ func NewRegisterUserHandler(uc RegisterUserUseCase) *RegisterUserHandler {
 }
 
 func (h *RegisterUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "METHOD_NOT_ALLOWED",
-				Message: "method not allowed",
-			},
-		})
-		return
-	}
-
 	var userData UserData
 	if !DecodeJSON(w, r, &userData) {
 		return

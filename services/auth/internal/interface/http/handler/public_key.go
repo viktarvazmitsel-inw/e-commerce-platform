@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-
-	"authorization/internal/interface/http/response"
 )
 
 type jwk struct {
@@ -45,17 +43,6 @@ func NewPublicKeyHandler(key *rsa.PublicKey) (*PublicKeyHandler, error) {
 }
 
 func (h *PublicKeyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "METHOD_NOT_ALLOWED",
-				Message: "method not allowed",
-			},
-		})
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(h.body)

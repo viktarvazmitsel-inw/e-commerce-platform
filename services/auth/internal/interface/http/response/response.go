@@ -1,7 +1,7 @@
 package response
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 )
 
@@ -20,5 +20,5 @@ type APIError struct {
 func RespondJSON(w http.ResponseWriter, status int, response *Response) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(response)
+	json.MarshalWrite(w, response)
 }

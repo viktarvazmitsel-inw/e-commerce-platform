@@ -31,17 +31,6 @@ func NewLoginUserHandler(uc LoginUserUseCase) *LoginUserHandler {
 }
 
 func (h *LoginUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "METHOD_NOT_ALLOWED",
-				Message: "method not allowed",
-			},
-		})
-		return
-	}
-
 	var userCredentials UserCredentials
 	if !DecodeJSON(w, r, &userCredentials) {
 		return

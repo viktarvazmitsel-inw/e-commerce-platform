@@ -18,28 +18,13 @@ type LogoutUserHandler struct {
 	logoutUser LogoutUserUseCase
 }
 
-type LogoutCredentials struct {
-	UserID string `json:"user_id"`
-}
-
 func NewLogoutUserHandler(uc LogoutUserUseCase) *LogoutUserHandler {
 	return &LogoutUserHandler{
 		logoutUser: uc,
 	}
 }
 
-func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "METHOD_NOT_ALLOWED",
-				Message: "method not allowed",
-			},
-		})
-		return
-	}
-
+func (h *LogoutUserHandler) HandlerWithUserID(w http.ResponseWriter, r *http.Request, userID string) {
 	cookie, err := r.Cookie(refreshTokenCookie)
 	if err != nil || strings.TrimSpace(cookie.Value) == "" {
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
@@ -47,18 +32,6 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Errors: &response.APIError{
 				Code:    "INVALID_REFRESH_TOKEN",
 				Message: "invalid or expired refresh token",
-			},
-		})
-		return
-	}
-
-	userID, err := getUserIDFromContext(r.Context())
-	if err != nil {
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "UNAUTHORIZED",
-				Message: "unauthorized",
 			},
 		})
 		return
@@ -82,10 +55,6 @@ func (h *LogoutUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"message": "logout successful",
 		},
 	})
-}
-
-func isLogoutCredentialsFormatOk(creds LogoutCredentials) bool {
-	return strings.TrimSpace(creds.UserID) != ""
 }
 
 func (h *LogoutUserHandler) handleUseCaseError(w http.ResponseWriter, err error) {

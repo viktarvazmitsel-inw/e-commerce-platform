@@ -30,30 +30,7 @@ func NewInitiateEmailUpdateHandler(uc InitiateEmailUpdateUseCase) *InitiateEmail
 	}
 }
 
-func (h *InitiateEmailUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "METHOD_NOT_ALLOWED",
-				Message: "method not allowed",
-			},
-		})
-		return
-	}
-
-	userID, err := getUserIDFromContext(r.Context())
-	if err != nil {
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "INVALID_PARAMETERS",
-				Message: err.Error(),
-			},
-		})
-		return
-	}
-
+func (h *InitiateEmailUpdateHandler) HandlerWithUserID(w http.ResponseWriter, r *http.Request, userID string) {
 	var body EmailUpdateBody
 	if !DecodeJSON(w, r, &body) {
 		return

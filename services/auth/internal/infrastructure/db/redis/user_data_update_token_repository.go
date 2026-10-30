@@ -3,7 +3,7 @@ package redis
 import (
 	"authorization/internal/usecase"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 

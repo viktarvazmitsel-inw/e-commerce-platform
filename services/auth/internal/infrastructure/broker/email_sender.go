@@ -3,7 +3,7 @@ package broker
 import (
 	"authorization/internal/usecase"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"

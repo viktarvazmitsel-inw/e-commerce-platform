@@ -30,30 +30,7 @@ func NewProfileSoftDeleteHandler(uc ProfileSoftDeleteUseCase) *ProfileSoftDelete
 	}
 }
 
-func (h *ProfileSoftDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		response.RespondJSON(w, http.StatusMethodNotAllowed, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "METHOD_NOT_ALLOWED",
-				Message: "method not allowed",
-			},
-		})
-		return
-	}
-
-	authorID, err := getUserIDFromContext(r.Context())
-	if err != nil {
-		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "INVALID_PARAMETERS",
-				Message: err.Error(),
-			},
-		})
-		return
-	}
-
+func (h *ProfileSoftDeleteHandler) HandlerWithUserID(w http.ResponseWriter, r *http.Request, authorID string) {
 	var inputData ProfileSoftDeleteInput
 	if !DecodeJSON(w, r, &inputData) {
 		return
