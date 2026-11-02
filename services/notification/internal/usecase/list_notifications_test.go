@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/shop/services/notification/internal/domain"
 )
@@ -16,6 +17,8 @@ type fakeNotificationRepository struct {
 	updateErr     error
 	page          int
 	quantity      int
+	statuses      []domain.Status
+	retryWindow   time.Duration
 	id            string
 	updated       *domain.Notification
 }
@@ -27,6 +30,32 @@ func (f *fakeNotificationRepository) GetNotifications(ctx context.Context, page,
 		return nil, 0, f.err
 	}
 	return f.notifications, f.total, nil
+}
+
+func (f *fakeNotificationRepository) GetNotificationsByStatuses(ctx context.Context, statuses []domain.Status, retryWindow time.Duration) ([]domain.Notification, error) {
+	f.statuses = statuses
+	f.retryWindow = retryWindow
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	allowed := make(map[domain.Status]struct{}, len(statuses))
+	for _, status := range statuses {
+		allowed[status] = struct{}{}
+	}
+
+	pendingCutoff := time.Now().UTC().Add(-retryWindow)
+	matched := make([]domain.Notification, 0)
+	for _, notification := range f.notifications {
+		if _, ok := allowed[notification.Status]; !ok {
+			continue
+		}
+		if notification.Status == domain.StatusPending && !notification.CreatedAt.Before(pendingCutoff) {
+			continue
+		}
+		matched = append(matched, notification)
+	}
+	return matched, nil
 }
 
 func (f *fakeNotificationRepository) GetNotificationByID(ctx context.Context, id string) (*domain.Notification, error) {

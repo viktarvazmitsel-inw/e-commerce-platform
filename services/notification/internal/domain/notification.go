@@ -91,6 +91,17 @@ func (n *Notification) SetStatus(status Status) error {
 	return nil
 }
 
+func (n *Notification) ResetForResend() error {
+	if n.Status != StatusFailed {
+		return ErrInvalidStatusTransition
+	}
+
+	n.Status = StatusPending
+	n.SendAttempts = 0
+	n.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 func (n *Notification) IncreaseSendAttempts() {
 	n.SendAttempts++
 	n.UpdatedAt = time.Now().UTC()

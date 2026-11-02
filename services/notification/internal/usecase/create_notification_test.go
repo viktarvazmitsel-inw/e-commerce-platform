@@ -9,12 +9,19 @@ import (
 )
 
 type fakeMessageQueuePublisher struct {
-	ids []string
-	err error
+	ids       []string
+	err       error
+	failAfter int
 }
 
 func (f *fakeMessageQueuePublisher) PublishForDelivery(ctx context.Context, notificationID string) error {
 	f.ids = append(f.ids, notificationID)
+	if f.failAfter > 0 && len(f.ids) > f.failAfter {
+		return f.err
+	}
+	if f.failAfter > 0 {
+		return nil
+	}
 	return f.err
 }
 

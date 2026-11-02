@@ -98,6 +98,53 @@ func TestSetStatus(t *testing.T) {
 	}
 }
 
+func TestResetForResend(t *testing.T) {
+	failed := mustNotification(t)
+	if err := failed.SetStatus(StatusFailed); err != nil {
+		t.Fatalf("pending to failed: %v", err)
+	}
+	if err := failed.SetSendAttempts(3); err != nil {
+		t.Fatalf("SetSendAttempts: %v", err)
+	}
+	createdAt := failed.CreatedAt
+	updatedAt := failed.UpdatedAt
+
+	if err := failed.ResetForResend(); err != nil {
+		t.Fatalf("ResetForResend: %v", err)
+	}
+	if failed.Status != StatusPending {
+		t.Fatalf("status: got %q", failed.Status)
+	}
+	if failed.SendAttempts != 0 {
+		t.Fatalf("attempts: got %d", failed.SendAttempts)
+	}
+	if failed.UpdatedAt.Before(updatedAt) {
+		t.Fatal("updated timestamp should move forward or stay equal")
+	}
+	if !failed.CreatedAt.Equal(createdAt) {
+		t.Fatal("created timestamp should stay unchanged")
+	}
+
+	pending := mustNotification(t)
+	if err := pending.ResetForResend(); err != ErrInvalidStatusTransition {
+		t.Fatalf("pending: got %v", err)
+	}
+	if pending.Status != StatusPending || pending.SendAttempts != 0 {
+		t.Fatalf("pending changed: %+v", pending)
+	}
+
+	sent := mustNotification(t)
+	if err := sent.SetStatus(StatusSent); err != nil {
+		t.Fatalf("pending to sent: %v", err)
+	}
+	if err := sent.ResetForResend(); err != ErrInvalidStatusTransition {
+		t.Fatalf("sent: got %v", err)
+	}
+	if sent.Status != StatusSent {
+		t.Fatalf("status: got %q", sent.Status)
+	}
+}
+
 func TestIncreaseSendAttempts(t *testing.T) {
 	n := mustNotification(t)
 	createdAt := n.CreatedAt
