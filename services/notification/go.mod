@@ -1,4 +1,4 @@
-module cmd/api/main.go
+module github.com/shop/services/notification
 
 go 1.27.1
 
