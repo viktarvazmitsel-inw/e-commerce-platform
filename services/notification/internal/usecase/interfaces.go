@@ -9,4 +9,14 @@ import (
 type NotificationRepository interface {
 	GetNotifications(ctx context.Context, page, quantity int) ([]domain.Notification, int, error)
 	GetNotificationByID(ctx context.Context, id string) (*domain.Notification, error)
+	CreateNotification(ctx context.Context, notification *domain.Notification) error
+	UpdateNotification(ctx context.Context, notification *domain.Notification) error
+}
+
+type MessageQueuePublisher interface {
+	PublishForDelivery(ctx context.Context, notificationID string) error
+}
+
+type EmailSender interface {
+	Send(ctx context.Context, channel, receiver, payload string) error
 }

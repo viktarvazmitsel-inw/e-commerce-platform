@@ -96,6 +96,15 @@ func (n *Notification) IncreaseSendAttempts() {
 	n.UpdatedAt = time.Now().UTC()
 }
 
+func (n *Notification) SetSendAttempts(attempts int) error {
+	if attempts < 0 {
+		return ErrInvalidSendAttempts
+	}
+	n.SendAttempts = attempts
+	n.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 func isChannelValid(channel string) bool {
 	return channelRegex.MatchString(channel)
 }

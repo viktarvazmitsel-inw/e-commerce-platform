@@ -119,6 +119,31 @@ func TestIncreaseSendAttempts(t *testing.T) {
 	}
 }
 
+func TestSetSendAttempts(t *testing.T) {
+	n := mustNotification(t)
+	createdAt := n.CreatedAt
+
+	if err := n.SetSendAttempts(-1); err != ErrInvalidSendAttempts {
+		t.Fatalf("negative attempts: got %v", err)
+	}
+	if n.SendAttempts != 0 {
+		t.Fatalf("attempts changed on rejection: got %d", n.SendAttempts)
+	}
+
+	if err := n.SetSendAttempts(4); err != nil {
+		t.Fatalf("SetSendAttempts: %v", err)
+	}
+	if n.SendAttempts != 4 {
+		t.Fatalf("attempts: got %d", n.SendAttempts)
+	}
+	if n.UpdatedAt.Before(createdAt) {
+		t.Fatal("updated timestamp should move forward or stay equal")
+	}
+	if !n.CreatedAt.Equal(createdAt) {
+		t.Fatal("created timestamp should stay unchanged")
+	}
+}
+
 func mustNotification(t *testing.T) *Notification {
 	t.Helper()
 	n, err := NewNotification("email", "user@example.com", `{"token":"abc"}`)

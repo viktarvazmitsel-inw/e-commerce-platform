@@ -12,9 +12,12 @@ type fakeNotificationRepository struct {
 	notifications []domain.Notification
 	total         int
 	err           error
+	createErr     error
+	updateErr     error
 	page          int
 	quantity      int
 	id            string
+	updated       *domain.Notification
 }
 
 func (f *fakeNotificationRepository) GetNotifications(ctx context.Context, page, quantity int) ([]domain.Notification, int, error) {
@@ -33,10 +36,35 @@ func (f *fakeNotificationRepository) GetNotificationByID(ctx context.Context, id
 	}
 	for i := range f.notifications {
 		if f.notifications[i].ID == id {
-			return &f.notifications[i], nil
+			copied := f.notifications[i]
+			return &copied, nil
 		}
 	}
 	return nil, ErrNotificationNotFound
+}
+
+func (f *fakeNotificationRepository) CreateNotification(ctx context.Context, notification *domain.Notification) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	f.notifications = append(f.notifications, *notification)
+	return nil
+}
+
+func (f *fakeNotificationRepository) UpdateNotification(ctx context.Context, notification *domain.Notification) error {
+	copied := *notification
+	f.updated = &copied
+	if f.updateErr != nil {
+		return f.updateErr
+	}
+	for i := range f.notifications {
+		if f.notifications[i].ID == notification.ID {
+			f.notifications[i] = copied
+			return nil
+		}
+	}
+	f.notifications = append(f.notifications, copied)
+	return nil
 }
 
 func TestListNotificationsExecute(t *testing.T) {

@@ -8,4 +8,5 @@ var (
 	ErrInvalidPayload          = errors.New("invalid payload")
 	ErrInvalidStatus           = errors.New("invalid status")
 	ErrInvalidStatusTransition = errors.New("invalid status transition")
+	ErrInvalidSendAttempts     = errors.New("invalid send attempts")
 )
