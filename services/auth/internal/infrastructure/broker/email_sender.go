@@ -64,16 +64,16 @@ func (s *EmailSender) handleReturnedMessages(ctx context.Context, returnChan <-c
 
 func (s *EmailSender) SendVerificationEmail(ctx context.Context, email, token string) error {
 	payload := MessagePayload{
-		Type:  "verification",
+		Type:  "user.created",
 		Email: email,
 		Token: token,
 	}
-	return s.publish(ctx, payload, "verification.mail")
+	return s.publish(ctx, payload, "user.created")
 }
 
 func (s *EmailSender) SendPasswordResetEmail(ctx context.Context, email, token string) error {
 	payload := MessagePayload{
-		Type:  "password_reset",
+		Type:  "user.password_reset",
 		Email: email,
 		Token: token,
 	}
