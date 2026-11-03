@@ -81,15 +81,15 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-root}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-default}
       - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-shop_note_db}
+      - SMTP_HOST=note-mailhog
+      - SMTP_PORT=1025
     networks:
       - note
       - frontend
       - broker
     depends_on:
-      broker:
-        condition: service_healthy
-    restart: unless-stopped
-
+      - broker
+      - note-mailhog
   note-db:
     container_name: shop-note-db
     image: mongo:7.0
@@ -101,6 +101,14 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-default}
       MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-shop_note_db}
+    networks:
+      - note
+
+  note-mailhog:
+    container_name: shop-note-mailhog
+    image: mailhog/mailhog
+    ports:
+      - "8025:8025"
     networks:
       - note
 
