@@ -27,6 +27,8 @@ func (uc *ResendNotificationsUseCase) Execute(ctx context.Context) (int, error) 
 		return 0, fmt.Errorf("load notifications: %w", err)
 	}
 
+	now := time.Now().UTC()
+	cutoff := now.Add(-uc.retryWindow)
 	queued := 0
 	for i := range notifications {
 		notification := &notifications[i]
@@ -39,12 +41,29 @@ func (uc *ResendNotificationsUseCase) Execute(ctx context.Context) (int, error) 
 				return queued, fmt.Errorf("update notification: %w", err)
 			}
 		case domain.StatusPending:
+			if notification.ClaimedUntil.After(now) {
+				continue
+			}
+			if !notification.AwaitingPublish && !notification.UpdatedAt.Before(cutoff) {
+				continue
+			}
+			if !notification.AwaitingPublish {
+				if err := notification.SupersedeDelivery(); err != nil {
+					return queued, err
+				}
+				if err := uc.repo.UpdateNotification(ctx, notification); err != nil {
+					return queued, fmt.Errorf("update notification: %w", err)
+				}
+			}
 		default:
 			continue
 		}
 
-		if err := uc.publisher.PublishForDelivery(ctx, notification.ID); err != nil {
+		if err := uc.publisher.PublishForDelivery(ctx, notification.ID, notification.DeliveryVersion); err != nil {
 			return queued, fmt.Errorf("publish notification for delivery: %w", err)
+		}
+		if err := uc.repo.MarkDeliveryPublished(ctx, notification.ID, notification.DeliveryVersion); err != nil {
+			return queued, fmt.Errorf("update notification: %w", err)
 		}
 		queued++
 	}

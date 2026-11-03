@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/shop/services/notification/internal/domain"
 )
@@ -11,88 +12,106 @@ import (
 type fakeEmailSender struct {
 	calls int
 	err   error
+	hook  func()
 }
 
 func (f *fakeEmailSender) Send(ctx context.Context, channel, receiver, payload string) error {
 	f.calls++
+	if f.hook != nil {
+		f.hook()
+	}
 	return f.err
 }
 
 func pendingNotification() domain.Notification {
 	return domain.Notification{
-		ID:       "019a0b2c-7c3e-7a1e-8c3a-9b0e1f2a3b4c",
-		Channel:  "email",
-		Receiver: "user@example.com",
-		Payload:  `{"token":"abc"}`,
-		Status:   domain.StatusPending,
+		ID:              "019a0b2c-7c3e-7a1e-8c3a-9b0e1f2a3b4c",
+		Channel:         "email",
+		Receiver:        "user@example.com",
+		Payload:         `{"token":"abc"}`,
+		Status:          domain.StatusPending,
+		DeliveryVersion: 1,
+	}
+}
+
+func newSendUseCase(t *testing.T, repo NotificationRepository, sender EmailSender, maxSendAttempt int) *SendNotificationUseCase {
+	t.Helper()
+	uc, err := NewSendNotificationUseCase(repo, sender, maxSendAttempt, time.Minute)
+	if err != nil {
+		t.Fatalf("NewSendNotificationUseCase: %v", err)
+	}
+	return uc
+}
+
+func TestNewSendNotificationUseCaseRejectsInvalidLimits(t *testing.T) {
+	if _, err := NewSendNotificationUseCase(nil, nil, 0, time.Minute); err == nil {
+		t.Fatal("expected max send attempt to be rejected")
+	}
+	if _, err := NewSendNotificationUseCase(nil, nil, 3, 0); err == nil {
+		t.Fatal("expected claim lease to be rejected")
 	}
 }
 
 func TestSendNotificationAttemptLimit(t *testing.T) {
-	repo := &fakeNotificationRepository{notifications: []domain.Notification{pendingNotification()}}
+	notification := pendingNotification()
+	notification.SendAttempts = 3
+	repo := &fakeNotificationRepository{notifications: []domain.Notification{notification}}
 	sender := &fakeEmailSender{}
-	uc := NewSendNotificationUseCase(repo, sender, 3)
+	uc := newSendUseCase(t, repo, sender, 3)
 
-	attempt, err := uc.Execute(context.Background(), SendNotificationInput{
-		NotificationID: pendingNotification().ID,
-		SendAttempt:    4,
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  notification.ID,
+		DeliveryVersion: 1,
 	})
-	if attempt != 4 {
-		t.Fatalf("attempt: got %d", attempt)
-	}
-	if !errors.Is(err, ErrSendAttemptLimit) {
-		t.Fatalf("error: got %v", err)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
 	}
 	if sender.calls != 0 {
 		t.Fatalf("sender calls: got %d", sender.calls)
 	}
 	stored := repo.notifications[0]
-	if stored.Status != domain.StatusFailed || stored.SendAttempts != 4 {
+	if stored.Status != domain.StatusFailed || stored.SendAttempts != 3 {
 		t.Fatalf("stored: status=%q attempts=%d", stored.Status, stored.SendAttempts)
 	}
 }
 
 func TestSendNotificationAttemptLimitUpdateError(t *testing.T) {
 	repoErr := errors.New("mongo down")
+	notification := pendingNotification()
+	notification.SendAttempts = 3
 	repo := &fakeNotificationRepository{
-		notifications: []domain.Notification{pendingNotification()},
+		notifications: []domain.Notification{notification},
 		updateErr:     repoErr,
 	}
 	sender := &fakeEmailSender{}
-	uc := NewSendNotificationUseCase(repo, sender, 3)
+	uc := newSendUseCase(t, repo, sender, 3)
 
-	attempt, err := uc.Execute(context.Background(), SendNotificationInput{
-		NotificationID: pendingNotification().ID,
-		SendAttempt:    4,
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  notification.ID,
+		DeliveryVersion: 1,
 	})
-	if attempt != 4 {
-		t.Fatalf("attempt: got %d", attempt)
-	}
 	if !errors.Is(err, repoErr) {
 		t.Fatalf("error: got %v", err)
 	}
-	if errors.Is(err, ErrSendAttemptLimit) {
-		t.Fatal("database error was reported as the attempt limit")
+	if errors.Is(err, ErrSendFailed) {
+		t.Fatal("database error was reported as a send failure")
 	}
 	if sender.calls != 0 {
 		t.Fatalf("sender calls: got %d", sender.calls)
 	}
-	if repo.notifications[0].Status != domain.StatusPending {
-		t.Fatalf("status: got %q", repo.notifications[0].Status)
+	if repo.notifications[0].Status != domain.StatusPending || repo.notifications[0].SendAttempts != 3 {
+		t.Fatalf("stored: status=%q attempts=%d", repo.notifications[0].Status, repo.notifications[0].SendAttempts)
 	}
 }
 
 func TestSendNotificationNotFound(t *testing.T) {
 	sender := &fakeEmailSender{}
-	uc := NewSendNotificationUseCase(&fakeNotificationRepository{}, sender, 3)
+	uc := newSendUseCase(t, &fakeNotificationRepository{}, sender, 3)
 
-	attempt, err := uc.Execute(context.Background(), SendNotificationInput{
-		NotificationID: "missing",
-		SendAttempt:    1,
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  "missing",
+		DeliveryVersion: 1,
 	})
-	if attempt != 1 {
-		t.Fatalf("attempt: got %d", attempt)
-	}
 	if !errors.Is(err, ErrNotificationNotFound) {
 		t.Fatalf("error: got %v", err)
 	}
@@ -104,15 +123,12 @@ func TestSendNotificationNotFound(t *testing.T) {
 func TestSendNotificationLoadErrorIsRetryable(t *testing.T) {
 	repoErr := errors.New("mongo down")
 	sender := &fakeEmailSender{}
-	uc := NewSendNotificationUseCase(&fakeNotificationRepository{err: repoErr}, sender, 3)
+	uc := newSendUseCase(t, &fakeNotificationRepository{err: repoErr}, sender, 3)
 
-	attempt, err := uc.Execute(context.Background(), SendNotificationInput{
-		NotificationID: pendingNotification().ID,
-		SendAttempt:    1,
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  pendingNotification().ID,
+		DeliveryVersion: 1,
 	})
-	if attempt != 1 {
-		t.Fatalf("attempt: got %d", attempt)
-	}
 	if !errors.Is(err, repoErr) {
 		t.Fatalf("error: got %v", err)
 	}
@@ -125,30 +141,51 @@ func TestSendNotificationLoadErrorIsRetryable(t *testing.T) {
 }
 
 func TestSendNotificationMarksSent(t *testing.T) {
-	repo := &fakeNotificationRepository{notifications: []domain.Notification{pendingNotification()}}
+	notification := pendingNotification()
+	notification.SendAttempts = 1
+	repo := &fakeNotificationRepository{notifications: []domain.Notification{notification}}
 	sender := &fakeEmailSender{}
-	uc := NewSendNotificationUseCase(repo, sender, 3)
+	uc := newSendUseCase(t, repo, sender, 3)
 
-	attempt, err := uc.Execute(context.Background(), SendNotificationInput{
-		NotificationID: pendingNotification().ID,
-		SendAttempt:    2,
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  notification.ID,
+		DeliveryVersion: 1,
 	})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
-	}
-	if attempt != 2 {
-		t.Fatalf("attempt: got %d", attempt)
 	}
 	if sender.calls != 1 {
 		t.Fatalf("sender calls: got %d", sender.calls)
 	}
 	stored := repo.notifications[0]
-	if stored.Status != domain.StatusSent || stored.SendAttempts != 2 {
-		t.Fatalf("stored: status=%q attempts=%d", stored.Status, stored.SendAttempts)
+	if stored.Status != domain.StatusSent || stored.SendAttempts != 2 || !stored.ClaimedUntil.IsZero() {
+		t.Fatalf("stored: %+v", stored)
 	}
 }
 
-func TestSendNotificationSendFailureReturnsNextAttempt(t *testing.T) {
+func TestSendNotificationSendFailurePersistsAttempt(t *testing.T) {
+	sendErr := errors.New("smtp down")
+	repo := &fakeNotificationRepository{notifications: []domain.Notification{pendingNotification()}}
+	sender := &fakeEmailSender{err: sendErr}
+	uc := newSendUseCase(t, repo, sender, 3)
+
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  pendingNotification().ID,
+		DeliveryVersion: 1,
+	})
+	if !errors.Is(err, ErrSendFailed) || !errors.Is(err, sendErr) {
+		t.Fatalf("error: got %v", err)
+	}
+	if sender.calls != 1 {
+		t.Fatalf("sender calls: got %d", sender.calls)
+	}
+	stored := repo.notifications[0]
+	if stored.Status != domain.StatusPending || stored.SendAttempts != 1 || !stored.ClaimedUntil.IsZero() {
+		t.Fatalf("stored: %+v", stored)
+	}
+}
+
+func TestSendNotificationSendFailureUpdateError(t *testing.T) {
 	sendErr := errors.New("smtp down")
 	repoErr := errors.New("mongo down")
 	repo := &fakeNotificationRepository{
@@ -156,29 +193,47 @@ func TestSendNotificationSendFailureReturnsNextAttempt(t *testing.T) {
 		updateErr:     repoErr,
 	}
 	sender := &fakeEmailSender{err: sendErr}
-	uc := NewSendNotificationUseCase(repo, sender, 3)
+	uc := newSendUseCase(t, repo, sender, 3)
 
-	attempt, err := uc.Execute(context.Background(), SendNotificationInput{
-		NotificationID: pendingNotification().ID,
-		SendAttempt:    1,
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  pendingNotification().ID,
+		DeliveryVersion: 1,
 	})
-	if attempt != 2 {
-		t.Fatalf("attempt: got %d", attempt)
-	}
-	if !errors.Is(err, ErrSendFailed) || !errors.Is(err, sendErr) {
+	if !errors.Is(err, repoErr) {
 		t.Fatalf("error: got %v", err)
 	}
-	if errors.Is(err, repoErr) {
-		t.Fatal("database error replaced the send failure")
+	if errors.Is(err, ErrSendFailed) {
+		t.Fatal("database error replaced the persisted attempt")
 	}
 	if sender.calls != 1 {
 		t.Fatalf("sender calls: got %d", sender.calls)
 	}
-	if repo.updated == nil || repo.updated.SendAttempts != 2 {
-		t.Fatalf("update payload: %+v", repo.updated)
+	stored := repo.notifications[0]
+	if stored.Status != domain.StatusPending || stored.SendAttempts != 0 {
+		t.Fatalf("stored: status=%q attempts=%d", stored.Status, stored.SendAttempts)
 	}
-	if repo.notifications[0].Status != domain.StatusPending || repo.notifications[0].SendAttempts != 0 {
-		t.Fatalf("stored: status=%q attempts=%d", repo.notifications[0].Status, repo.notifications[0].SendAttempts)
+}
+
+func TestSendNotificationFailureAtCeilingAcks(t *testing.T) {
+	notification := pendingNotification()
+	notification.SendAttempts = 2
+	repo := &fakeNotificationRepository{notifications: []domain.Notification{notification}}
+	sender := &fakeEmailSender{err: errors.New("smtp down")}
+	uc := newSendUseCase(t, repo, sender, 3)
+
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  notification.ID,
+		DeliveryVersion: 1,
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if sender.calls != 1 {
+		t.Fatalf("sender calls: got %d", sender.calls)
+	}
+	stored := repo.notifications[0]
+	if stored.Status != domain.StatusFailed || stored.SendAttempts != 3 {
+		t.Fatalf("stored: status=%q attempts=%d", stored.Status, stored.SendAttempts)
 	}
 }
 
@@ -195,20 +250,18 @@ func TestSendNotificationSkipsTerminalStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			notification := pendingNotification()
 			notification.Status = tt.status
-			notification.SendAttempts = 2
+			notification.SendAttempts = 9
+			notification.DeliveryVersion = 4
 			repo := &fakeNotificationRepository{notifications: []domain.Notification{notification}}
 			sender := &fakeEmailSender{}
-			uc := NewSendNotificationUseCase(repo, sender, 3)
+			uc := newSendUseCase(t, repo, sender, 3)
 
-			attempt, err := uc.Execute(context.Background(), SendNotificationInput{
-				NotificationID: notification.ID,
-				SendAttempt:    2,
+			err := uc.Execute(context.Background(), SendNotificationInput{
+				NotificationID:  notification.ID,
+				DeliveryVersion: 1,
 			})
 			if err != nil {
 				t.Fatalf("Execute: %v", err)
-			}
-			if attempt != 2 {
-				t.Fatalf("attempt: got %d", attempt)
 			}
 			if sender.calls != 0 {
 				t.Fatalf("sender calls: got %d", sender.calls)
@@ -216,6 +269,68 @@ func TestSendNotificationSkipsTerminalStatus(t *testing.T) {
 			if repo.updated != nil {
 				t.Fatal("terminal notification was updated")
 			}
+			stored := repo.notifications[0]
+			if stored.Status != tt.status || stored.SendAttempts != 9 {
+				t.Fatalf("stored: %+v", stored)
+			}
 		})
+	}
+}
+
+func TestSendNotificationStaleVersionDoesNotSend(t *testing.T) {
+	notification := pendingNotification()
+	notification.DeliveryVersion = 3
+	notification.SendAttempts = 1
+	repo := &fakeNotificationRepository{notifications: []domain.Notification{notification}}
+	sender := &fakeEmailSender{}
+	uc := newSendUseCase(t, repo, sender, 3)
+
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  notification.ID,
+		DeliveryVersion: 2,
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if sender.calls != 0 {
+		t.Fatalf("sender calls: got %d", sender.calls)
+	}
+	if repo.updated != nil {
+		t.Fatal("stale notification was updated")
+	}
+	stored := repo.notifications[0]
+	if stored.Status != domain.StatusPending || stored.SendAttempts != 1 || stored.DeliveryVersion != 3 {
+		t.Fatalf("stored: %+v", stored)
+	}
+}
+
+func TestSendNotificationLostClaimDoesNotSend(t *testing.T) {
+	repo := &fakeNotificationRepository{notifications: []domain.Notification{pendingNotification()}}
+	sender := &fakeEmailSender{}
+	uc := newSendUseCase(t, repo, sender, 3)
+	var nested error
+	sender.hook = func() {
+		nested = uc.Execute(context.Background(), SendNotificationInput{
+			NotificationID:  pendingNotification().ID,
+			DeliveryVersion: 1,
+		})
+	}
+
+	err := uc.Execute(context.Background(), SendNotificationInput{
+		NotificationID:  pendingNotification().ID,
+		DeliveryVersion: 1,
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !errors.Is(nested, ErrDeliveryInProgress) {
+		t.Fatalf("nested error: got %v", nested)
+	}
+	if sender.calls != 1 {
+		t.Fatalf("sender calls: got %d", sender.calls)
+	}
+	stored := repo.notifications[0]
+	if stored.Status != domain.StatusSent || stored.SendAttempts != 1 {
+		t.Fatalf("stored: %+v", stored)
 	}
 }

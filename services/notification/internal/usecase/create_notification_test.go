@@ -10,12 +10,14 @@ import (
 
 type fakeMessageQueuePublisher struct {
 	ids       []string
+	versions  []int
 	err       error
 	failAfter int
 }
 
-func (f *fakeMessageQueuePublisher) PublishForDelivery(ctx context.Context, notificationID string) error {
+func (f *fakeMessageQueuePublisher) PublishForDelivery(ctx context.Context, notificationID string, deliveryVersion int) error {
 	f.ids = append(f.ids, notificationID)
+	f.versions = append(f.versions, deliveryVersion)
 	if f.failAfter > 0 && len(f.ids) > f.failAfter {
 		return f.err
 	}
@@ -50,11 +52,13 @@ func TestCreateNotificationExecute(t *testing.T) {
 		stored.Receiver != "user@example.com" ||
 		stored.Payload != `{"token":"abc"}` ||
 		stored.Status != domain.StatusPending ||
-		stored.SendAttempts != 0 {
+		stored.SendAttempts != 0 ||
+		stored.DeliveryVersion != 1 ||
+		stored.AwaitingPublish {
 		t.Fatalf("stored: %+v", stored)
 	}
-	if len(publisher.ids) != 1 || publisher.ids[0] != id {
-		t.Fatalf("published ids: %v", publisher.ids)
+	if len(publisher.ids) != 1 || publisher.ids[0] != id || publisher.versions[0] != 1 {
+		t.Fatalf("published: ids %v versions %v", publisher.ids, publisher.versions)
 	}
 }
 
@@ -103,8 +107,12 @@ func TestCreateNotificationPublishErrorReturnsID(t *testing.T) {
 	if len(repo.notifications) != 1 || repo.notifications[0].ID != id {
 		t.Fatalf("stored: %+v", repo.notifications)
 	}
-	if repo.notifications[0].Status != domain.StatusPending {
-		t.Fatalf("status: got %q", repo.notifications[0].Status)
+	stored := repo.notifications[0]
+	if stored.Status != domain.StatusPending || stored.DeliveryVersion != 1 || !stored.AwaitingPublish {
+		t.Fatalf("stored: %+v", stored)
+	}
+	if len(publisher.versions) != 1 || publisher.versions[0] != 1 {
+		t.Fatalf("published versions: %v", publisher.versions)
 	}
 }
 

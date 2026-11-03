@@ -31,6 +31,15 @@ func TestNewNotification(t *testing.T) {
 	if n.SendAttempts != 0 {
 		t.Fatalf("send attempts: got %d", n.SendAttempts)
 	}
+	if n.DeliveryVersion != 1 {
+		t.Fatalf("delivery version: got %d", n.DeliveryVersion)
+	}
+	if !n.AwaitingPublish {
+		t.Fatal("new notification should await publish")
+	}
+	if !n.ClaimedUntil.IsZero() {
+		t.Fatal("new notification should not be claimed")
+	}
 	if n.CreatedAt.Before(before) || n.UpdatedAt.Before(before) {
 		t.Fatal("timestamps should be set to the current time")
 	}
@@ -103,9 +112,10 @@ func TestResetForResend(t *testing.T) {
 	if err := failed.SetStatus(StatusFailed); err != nil {
 		t.Fatalf("pending to failed: %v", err)
 	}
-	if err := failed.SetSendAttempts(3); err != nil {
-		t.Fatalf("SetSendAttempts: %v", err)
-	}
+	failed.SendAttempts = 3
+	failed.DeliveryVersion = 2
+	failed.ClaimedUntil = time.Now().UTC().Add(time.Minute)
+	failed.AwaitingPublish = false
 	createdAt := failed.CreatedAt
 	updatedAt := failed.UpdatedAt
 
@@ -117,6 +127,15 @@ func TestResetForResend(t *testing.T) {
 	}
 	if failed.SendAttempts != 0 {
 		t.Fatalf("attempts: got %d", failed.SendAttempts)
+	}
+	if failed.DeliveryVersion != 3 {
+		t.Fatalf("delivery version: got %d", failed.DeliveryVersion)
+	}
+	if !failed.ClaimedUntil.IsZero() {
+		t.Fatal("claim should be cleared")
+	}
+	if !failed.AwaitingPublish {
+		t.Fatal("reset should await publish")
 	}
 	if failed.UpdatedAt.Before(updatedAt) {
 		t.Fatal("updated timestamp should move forward or stay equal")
@@ -145,16 +164,72 @@ func TestResetForResend(t *testing.T) {
 	}
 }
 
+func TestSupersedeDelivery(t *testing.T) {
+	pending := mustNotification(t)
+	if err := pending.IncreaseSendAttempts(); err != nil {
+		t.Fatalf("IncreaseSendAttempts: %v", err)
+	}
+	pending.DeliveryVersion = 3
+	pending.ClaimedUntil = time.Now().UTC().Add(time.Minute)
+	pending.AwaitingPublish = false
+	createdAt := pending.CreatedAt
+
+	if err := pending.SupersedeDelivery(); err != nil {
+		t.Fatalf("SupersedeDelivery: %v", err)
+	}
+	if pending.Status != StatusPending {
+		t.Fatalf("status: got %q", pending.Status)
+	}
+	if pending.SendAttempts != 1 {
+		t.Fatalf("attempts: got %d", pending.SendAttempts)
+	}
+	if pending.DeliveryVersion != 4 {
+		t.Fatalf("delivery version: got %d", pending.DeliveryVersion)
+	}
+	if !pending.ClaimedUntil.IsZero() {
+		t.Fatal("claim should be cleared")
+	}
+	if !pending.AwaitingPublish {
+		t.Fatal("supersede should await publish")
+	}
+	if !pending.CreatedAt.Equal(createdAt) {
+		t.Fatal("created timestamp should stay unchanged")
+	}
+
+	failed := mustNotification(t)
+	if err := failed.SetStatus(StatusFailed); err != nil {
+		t.Fatalf("pending to failed: %v", err)
+	}
+	if err := failed.SupersedeDelivery(); err != ErrInvalidStatusTransition {
+		t.Fatalf("failed: got %v", err)
+	}
+
+	sent := mustNotification(t)
+	if err := sent.SetStatus(StatusSent); err != nil {
+		t.Fatalf("pending to sent: %v", err)
+	}
+	if err := sent.SupersedeDelivery(); err != ErrInvalidStatusTransition {
+		t.Fatalf("sent: got %v", err)
+	}
+	if sent.DeliveryVersion != 1 {
+		t.Fatalf("delivery version: got %d", sent.DeliveryVersion)
+	}
+}
+
 func TestIncreaseSendAttempts(t *testing.T) {
 	n := mustNotification(t)
 	createdAt := n.CreatedAt
 
-	n.IncreaseSendAttempts()
+	if err := n.IncreaseSendAttempts(); err != nil {
+		t.Fatalf("IncreaseSendAttempts: %v", err)
+	}
 	if n.SendAttempts != 1 {
 		t.Fatalf("attempts: got %d", n.SendAttempts)
 	}
 
-	n.IncreaseSendAttempts()
+	if err := n.IncreaseSendAttempts(); err != nil {
+		t.Fatalf("IncreaseSendAttempts: %v", err)
+	}
 	if n.SendAttempts != 2 {
 		t.Fatalf("attempts: got %d", n.SendAttempts)
 	}
@@ -164,30 +239,15 @@ func TestIncreaseSendAttempts(t *testing.T) {
 	if !n.CreatedAt.Equal(createdAt) {
 		t.Fatal("created timestamp should stay unchanged")
 	}
-}
 
-func TestSetSendAttempts(t *testing.T) {
-	n := mustNotification(t)
-	createdAt := n.CreatedAt
-
-	if err := n.SetSendAttempts(-1); err != ErrInvalidSendAttempts {
-		t.Fatalf("negative attempts: got %v", err)
+	if err := n.SetStatus(StatusSent); err != nil {
+		t.Fatalf("pending to sent: %v", err)
 	}
-	if n.SendAttempts != 0 {
+	if err := n.IncreaseSendAttempts(); err != ErrInvalidStatusTransition {
+		t.Fatalf("sent: got %v", err)
+	}
+	if n.SendAttempts != 2 {
 		t.Fatalf("attempts changed on rejection: got %d", n.SendAttempts)
-	}
-
-	if err := n.SetSendAttempts(4); err != nil {
-		t.Fatalf("SetSendAttempts: %v", err)
-	}
-	if n.SendAttempts != 4 {
-		t.Fatalf("attempts: got %d", n.SendAttempts)
-	}
-	if n.UpdatedAt.Before(createdAt) {
-		t.Fatal("updated timestamp should move forward or stay equal")
-	}
-	if !n.CreatedAt.Equal(createdAt) {
-		t.Fatal("created timestamp should stay unchanged")
 	}
 }
 

@@ -44,14 +44,21 @@ func (f *fakeNotificationRepository) GetNotificationsByStatuses(ctx context.Cont
 		allowed[status] = struct{}{}
 	}
 
-	pendingCutoff := time.Now().UTC().Add(-retryWindow)
+	now := time.Now().UTC()
+	pendingCutoff := now.Add(-retryWindow)
 	matched := make([]domain.Notification, 0)
 	for _, notification := range f.notifications {
 		if _, ok := allowed[notification.Status]; !ok {
 			continue
 		}
-		if notification.Status == domain.StatusPending && !notification.CreatedAt.Before(pendingCutoff) {
-			continue
+		if notification.Status == domain.StatusPending {
+			if notification.ClaimedUntil.After(now) {
+				continue
+			}
+			stuck := notification.UpdatedAt.Before(pendingCutoff)
+			if !notification.AwaitingPublish && !stuck {
+				continue
+			}
 		}
 		matched = append(matched, notification)
 	}
@@ -94,6 +101,37 @@ func (f *fakeNotificationRepository) UpdateNotification(ctx context.Context, not
 	}
 	f.notifications = append(f.notifications, copied)
 	return nil
+}
+
+func (f *fakeNotificationRepository) ClaimNotification(ctx context.Context, id string, version int, until time.Time) error {
+	now := time.Now().UTC()
+	for i := range f.notifications {
+		notification := &f.notifications[i]
+		if notification.ID != id {
+			continue
+		}
+		if notification.Status != domain.StatusPending || notification.DeliveryVersion != version || notification.ClaimedUntil.After(now) {
+			return ErrDeliveryInProgress
+		}
+		notification.ClaimedUntil = until
+		return nil
+	}
+	return ErrNotificationNotFound
+}
+
+func (f *fakeNotificationRepository) MarkDeliveryPublished(ctx context.Context, id string, version int) error {
+	for i := range f.notifications {
+		notification := &f.notifications[i]
+		if notification.ID != id {
+			continue
+		}
+		if notification.DeliveryVersion != version || notification.Status != domain.StatusPending {
+			return nil
+		}
+		notification.MarkDeliveryPublished()
+		return nil
+	}
+	return ErrNotificationNotFound
 }
 
 func TestListNotificationsExecute(t *testing.T) {

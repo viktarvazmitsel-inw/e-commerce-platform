@@ -32,8 +32,11 @@ func (uc *CreateNotificationUseCase) Execute(ctx context.Context, input CreateNo
 		return "", fmt.Errorf("create notification: %w", err)
 	}
 
-	if err := uc.publisher.PublishForDelivery(ctx, notification.ID); err != nil {
+	if err := uc.publisher.PublishForDelivery(ctx, notification.ID, notification.DeliveryVersion); err != nil {
 		return notification.ID, fmt.Errorf("publish notification for delivery: %w", err)
+	}
+	if err := uc.repo.MarkDeliveryPublished(ctx, notification.ID, notification.DeliveryVersion); err != nil {
+		return notification.ID, fmt.Errorf("update notification: %w", err)
 	}
 
 	return notification.ID, nil
