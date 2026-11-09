@@ -14,14 +14,14 @@ type GetNotificationInput struct {
 }
 
 type GetNotificationOutput struct {
-	ID           string        `json:"id"`
-	Channel      string        `json:"channel"`
-	Receiver     string        `json:"receiver"`
-	Payload      string        `json:"payload"`
-	Status       domain.Status `json:"status"`
-	SendAttempts int           `json:"send_attempts"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
+	ID             string        `json:"id"`
+	Event          string        `json:"event"`
+	Receiver       string        `json:"receiver"`
+	Payload        string        `json:"payload"`
+	Status         domain.Status `json:"status"`
+	ResendAttempts int           `json:"resend_attempts"`
+	CreatedAt      time.Time     `json:"created_at"`
+	UpdatedAt      time.Time     `json:"updated_at"`
 }
 
 type GetNotificationUseCase struct {
@@ -45,13 +45,13 @@ func (uc *GetNotificationUseCase) Execute(ctx context.Context, input GetNotifica
 	}
 
 	return &GetNotificationOutput{
-		ID:           notification.ID,
-		Channel:      notification.Channel,
-		Receiver:     notification.Receiver,
-		Payload:      notification.Payload,
-		Status:       notification.Status,
-		SendAttempts: notification.SendAttempts,
-		CreatedAt:    notification.CreatedAt,
-		UpdatedAt:    notification.UpdatedAt,
+		ID:             notification.ID,
+		Event:          notification.Event,
+		Receiver:       notification.Receiver,
+		Payload:        notification.Payload,
+		Status:         notification.Status,
+		ResendAttempts: notification.ResendAttempts,
+		CreatedAt:      notification.CreatedAt,
+		UpdatedAt:      notification.UpdatedAt,
 	}, nil
 }

@@ -4,97 +4,105 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/shop/services/notification/internal/domain"
 )
 
 type SendNotificationInput struct {
-	NotificationID  string
-	DeliveryVersion int
+	NotificationID string
+	Event          string
+	Receiver       string
+	Payload        string
+}
+
+type SendNotificationOutput struct {
+	ResendCount    int
+	NotificationID string
 }
 
 type SendNotificationUseCase struct {
-	repo           NotificationRepository
-	sender         EmailSender
-	maxSendAttempt int
-	claimLease     time.Duration
+	repo   NotificationRepository
+	sender EmailSender
 }
 
-func NewSendNotificationUseCase(r NotificationRepository, s EmailSender, maxSendAttempt int, claimLease time.Duration) (*SendNotificationUseCase, error) {
-	if maxSendAttempt < 1 {
-		return nil, fmt.Errorf("max send attempt must be positive")
-	}
-	if claimLease <= 0 {
-		return nil, fmt.Errorf("claim lease must be positive")
-	}
+func NewSendNotificationUseCase(r NotificationRepository, s EmailSender) (*SendNotificationUseCase, error) {
 	return &SendNotificationUseCase{
-		repo:           r,
-		sender:         s,
-		maxSendAttempt: maxSendAttempt,
-		claimLease:     claimLease,
+		repo:   r,
+		sender: s,
 	}, nil
 }
 
-func (uc *SendNotificationUseCase) Execute(ctx context.Context, input SendNotificationInput) error {
-	notification, err := uc.load(ctx, input.NotificationID)
-	if err != nil {
-		return err
+func (uc *SendNotificationUseCase) Execute(ctx context.Context, input SendNotificationInput) (SendNotificationOutput, error) {
+	var notification *domain.Notification
+	var err error
+	if input.NotificationID == "" {
+		notification, err = domain.NewNotification(input.Event, input.Receiver, input.Payload)
+		if err != nil {
+			return SendNotificationOutput{}, err
+		}
+		if err := uc.repo.CreateNotification(ctx, notification); err != nil {
+			return SendNotificationOutput{}, fmt.Errorf("create notification: %w", err)
+		}
+	} else {
+		notification, err = uc.load(ctx, input.NotificationID)
+		if err != nil {
+			return SendNotificationOutput{}, err
+		}
+		if notification.Status == domain.StatusSent || notification.Status == domain.StatusFailed {
+			return SendNotificationOutput{
+				NotificationID: notification.ID,
+			}, nil
+		}
+		if notification.ResendAttempts >= 3 {
+			if err := notification.SetStatus(domain.StatusFailed); err != nil {
+				return SendNotificationOutput{
+					NotificationID: notification.ID,
+				}, err
+			}
+			if err := uc.repo.UpdateNotification(ctx, notification); err != nil {
+				return SendNotificationOutput{
+					NotificationID: notification.ID,
+				}, fmt.Errorf("update notification: %w", err)
+			}
+			return SendNotificationOutput{
+				ResendCount:    notification.ResendAttempts,
+				NotificationID: notification.ID,
+			}, ErrMaxResendAttemptsReached
+		}
 	}
-	if notification.Status == domain.StatusSent || notification.Status == domain.StatusFailed {
-		return nil
-	}
-	if notification.DeliveryVersion != input.DeliveryVersion {
-		return nil
-	}
-	if notification.SendAttempts >= uc.maxSendAttempt {
-		if err := notification.SetStatus(domain.StatusFailed); err != nil {
-			return err
+
+	if err := uc.sender.Send(ctx, notification.Event, notification.Receiver, notification.Payload); err != nil {
+		if err := notification.IncreaseSendAttempts(); err != nil {
+			return SendNotificationOutput{
+				NotificationID: notification.ID,
+			}, err
 		}
 		if err := uc.repo.UpdateNotification(ctx, notification); err != nil {
-			return fmt.Errorf("update notification: %w", err)
+			return SendNotificationOutput{
+				NotificationID: notification.ID,
+			}, fmt.Errorf("update notification: %w", err)
 		}
-		return nil
+		return SendNotificationOutput{
+			ResendCount:    notification.ResendAttempts,
+			NotificationID: notification.ID,
+		}, err
 	}
 
-	until := time.Now().UTC().Add(uc.claimLease)
-	if err := uc.repo.ClaimNotification(ctx, notification.ID, notification.DeliveryVersion, until); err != nil {
-		if errors.Is(err, ErrDeliveryInProgress) || errors.Is(err, ErrNotificationNotFound) {
-			return err
-		}
-		return fmt.Errorf("claim notification: %w", err)
-	}
-	notification.ClaimedUntil = until
-
-	if err := uc.sender.Send(ctx, notification.Channel, notification.Receiver, notification.Payload); err != nil {
-		if incErr := notification.IncreaseSendAttempts(); incErr != nil {
-			return incErr
-		}
-		notification.ReleaseClaim()
-		if notification.SendAttempts >= uc.maxSendAttempt {
-			if statusErr := notification.SetStatus(domain.StatusFailed); statusErr != nil {
-				return statusErr
-			}
-		}
-		if updateErr := uc.repo.UpdateNotification(ctx, notification); updateErr != nil {
-			return fmt.Errorf("update notification: %w", updateErr)
-		}
-		if notification.Status == domain.StatusFailed {
-			return nil
-		}
-		return fmt.Errorf("%w: %w", ErrSendFailed, err)
-	}
-
-	if err := notification.IncreaseSendAttempts(); err != nil {
-		return err
-	}
 	if err := notification.SetStatus(domain.StatusSent); err != nil {
-		return err
+		return SendNotificationOutput{
+			NotificationID: notification.ID,
+		}, err
 	}
+
 	if err := uc.repo.UpdateNotification(ctx, notification); err != nil {
-		return fmt.Errorf("update notification: %w", err)
+		return SendNotificationOutput{
+			NotificationID: notification.ID,
+		}, fmt.Errorf("update notification: %w", err)
 	}
-	return nil
+
+	return SendNotificationOutput{
+		NotificationID: notification.ID,
+	}, nil
 }
 
 func (uc *SendNotificationUseCase) load(ctx context.Context, id string) (*domain.Notification, error) {

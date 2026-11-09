@@ -12,8 +12,8 @@ import (
 const maxPayloadBytes = 64 * 1024
 
 var (
-	emailRegex   = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	channelRegex = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,63}$`)
+	emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	eventRegex = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,63}$`)
 )
 
 type Status string
@@ -34,22 +34,19 @@ func (s Status) Valid() bool {
 }
 
 type Notification struct {
-	ID              string
-	Channel         string
-	Receiver        string
-	Payload         string
-	Status          Status
-	SendAttempts    int
-	DeliveryVersion int
-	ClaimedUntil    time.Time
-	AwaitingPublish bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID             string
+	Event          string
+	Receiver       string
+	Payload        string
+	Status         Status
+	ResendAttempts int
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
-func NewNotification(channel, receiver, payload string) (*Notification, error) {
-	channel = strings.TrimSpace(channel)
-	if !isChannelValid(channel) {
+func NewNotification(event, receiver, payload string) (*Notification, error) {
+	event = strings.TrimSpace(event)
+	if !isEventValid(event) {
 		return nil, ErrInvalidChannel
 	}
 
@@ -70,16 +67,14 @@ func NewNotification(channel, receiver, payload string) (*Notification, error) {
 
 	now := time.Now().UTC()
 	return &Notification{
-		ID:              id,
-		Channel:         channel,
-		Receiver:        receiver,
-		Payload:         payload,
-		Status:          StatusPending,
-		SendAttempts:    0,
-		DeliveryVersion: 1,
-		AwaitingPublish: true,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		ID:             id,
+		Event:          event,
+		Receiver:       receiver,
+		Payload:        payload,
+		Status:         StatusPending,
+		ResendAttempts: 0,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}, nil
 }
 
@@ -92,7 +87,6 @@ func (n *Notification) SetStatus(status Status) error {
 	}
 
 	n.Status = status
-	n.ClaimedUntil = time.Time{}
 	n.UpdatedAt = time.Now().UTC()
 	return nil
 }
@@ -103,22 +97,7 @@ func (n *Notification) ResetForResend() error {
 	}
 
 	n.Status = StatusPending
-	n.SendAttempts = 0
-	n.DeliveryVersion++
-	n.ClaimedUntil = time.Time{}
-	n.AwaitingPublish = true
-	n.UpdatedAt = time.Now().UTC()
-	return nil
-}
-
-func (n *Notification) SupersedeDelivery() error {
-	if n.Status != StatusPending {
-		return ErrInvalidStatusTransition
-	}
-
-	n.DeliveryVersion++
-	n.ClaimedUntil = time.Time{}
-	n.AwaitingPublish = true
+	n.ResendAttempts = 0
 	n.UpdatedAt = time.Now().UTC()
 	return nil
 }
@@ -128,23 +107,13 @@ func (n *Notification) IncreaseSendAttempts() error {
 		return ErrInvalidStatusTransition
 	}
 
-	n.SendAttempts++
+	n.ResendAttempts++
 	n.UpdatedAt = time.Now().UTC()
 	return nil
 }
 
-func (n *Notification) ReleaseClaim() {
-	n.ClaimedUntil = time.Time{}
-	n.UpdatedAt = time.Now().UTC()
-}
-
-func (n *Notification) MarkDeliveryPublished() {
-	n.AwaitingPublish = false
-	n.UpdatedAt = time.Now().UTC()
-}
-
-func isChannelValid(channel string) bool {
-	return channelRegex.MatchString(channel)
+func isEventValid(event string) bool {
+	return eventRegex.MatchString(event)
 }
 
 func isReceiverValid(receiver string) bool {

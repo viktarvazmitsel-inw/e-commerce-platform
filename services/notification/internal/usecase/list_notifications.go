@@ -13,11 +13,11 @@ type ListNotificationsInput struct {
 }
 
 type NotificationListItem struct {
-	ID           string        `json:"id"`
-	Channel      string        `json:"channel"`
-	Receiver     string        `json:"receiver"`
-	Status       domain.Status `json:"status"`
-	SendAttempts int           `json:"send_attempts"`
+	ID             string        `json:"id"`
+	Event          string        `json:"event"`
+	Receiver       string        `json:"receiver"`
+	Status         domain.Status `json:"status"`
+	ResendAttempts int           `json:"resend_attempts"`
 }
 
 type ListNotificationsOutput struct {
@@ -54,11 +54,11 @@ func (uc *ListNotificationsUseCase) Execute(ctx context.Context, input ListNotif
 	items := make([]NotificationListItem, 0, len(notifications))
 	for _, n := range notifications {
 		items = append(items, NotificationListItem{
-			ID:           n.ID,
-			Channel:      n.Channel,
-			Receiver:     n.Receiver,
-			Status:       n.Status,
-			SendAttempts: n.SendAttempts,
+			ID:             n.ID,
+			Event:          n.Event,
+			Receiver:       n.Receiver,
+			Status:         n.Status,
+			ResendAttempts: n.ResendAttempts,
 		})
 	}
 

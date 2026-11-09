@@ -358,9 +358,9 @@ func (b *Broker) ResendMessage(
 	body []byte,
 	metadata MessageMetadata,
 ) error {
-	retryCount := metadata.RetryCount + 1
+
 	headers := amqp.Table{
-		"x-retry-count": int32(retryCount),
+		"x-retry-count": int32(metadata.RetryCount),
 		"x-original-id": metadata.OriginalID,
 	}
 	publishing := amqp.Publishing{
@@ -370,7 +370,7 @@ func (b *Broker) ResendMessage(
 		Headers:      headers,
 	}
 
-	retryInterval := selectRetryInterval(retryCount)
+	retryInterval := selectRetryInterval(metadata.RetryCount)
 	if retryInterval == "" {
 		return b.publish(ctx, "", deadLetterQueue, publishing)
 	}
