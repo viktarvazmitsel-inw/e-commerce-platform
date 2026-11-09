@@ -1,38 +1,31 @@
-package abroker
+package broker
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 )
 
-type MessageHandler func(ctx context.Context, body []byte, resendAttempts int) error
+type MessageMetadata struct {
+	OriginalID string
+	RetryCount int
+	RoutingKey string
+}
+
+type MessageHandler func(ctx context.Context, body []byte, metadata MessageMetadata)
 
 type BrokerRouter struct {
-	Services          []string
-	HandlerMap        map[string]MessageHandler
-	DeadLetterHandler MessageHandler
+	HandlerMap map[string]MessageHandler
 }
 
 func NewBrokerRouter(
 	services []string,
 	handlerMap map[string]MessageHandler,
-	deadLetterHandler ...MessageHandler,
 ) *BrokerRouter {
-	if len(deadLetterHandler) == 0 {
-		deadLetterHandler = []MessageHandler{
-			func(ctx context.Context, body []byte, resendAttempts int) error {
-				return nil
-			},
-		}
-	}
 
 	return &BrokerRouter{
-		Services:          services,
-		HandlerMap:        handlerMap,
-		DeadLetterHandler: deadLetterHandler[0],
+		HandlerMap: handlerMap,
 	}
 }
 
@@ -47,11 +40,6 @@ func validateRouter(router *BrokerRouter) error {
 	}
 	sort.Strings(keys)
 
-	for _, key := range keys {
-		if !matchesDeclaredService(router.Services, key) {
-			return fmt.Errorf("handler key %q does not match {service}.# for a declared service", key)
-		}
-	}
 	return nil
 }
 
