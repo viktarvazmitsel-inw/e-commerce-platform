@@ -12,7 +12,7 @@ type SendNotificationInput struct {
 	NotificationID string
 	Event          string
 	Receiver       string
-	Payload        string
+	Payload        map[string]any
 }
 
 type SendNotificationOutput struct {
@@ -32,7 +32,10 @@ func NewSendNotificationUseCase(r NotificationRepository, s EmailSender) (*SendN
 	}, nil
 }
 
-func (uc *SendNotificationUseCase) Execute(ctx context.Context, input SendNotificationInput) (SendNotificationOutput, error) {
+func (uc *SendNotificationUseCase) Execute(
+	ctx context.Context,
+	input SendNotificationInput,
+) (SendNotificationOutput, error) {
 	var notification *domain.Notification
 	var err error
 	if input.NotificationID == "" {

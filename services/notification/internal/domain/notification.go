@@ -2,7 +2,6 @@ package domain
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -37,14 +36,14 @@ type Notification struct {
 	ID             string
 	Event          string
 	Receiver       string
-	Payload        string
+	Payload        map[string]any
 	Status         Status
 	ResendAttempts int
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
 
-func NewNotification(event, receiver, payload string) (*Notification, error) {
+func NewNotification(event, receiver string, payload map[string]any) (*Notification, error) {
 	event = strings.TrimSpace(event)
 	if !isEventValid(event) {
 		return nil, ErrInvalidChannel
@@ -55,7 +54,6 @@ func NewNotification(event, receiver, payload string) (*Notification, error) {
 		return nil, ErrInvalidReceiver
 	}
 
-	payload = strings.TrimSpace(payload)
 	if !isPayloadValid(payload) {
 		return nil, ErrInvalidPayload
 	}
@@ -123,19 +121,11 @@ func isReceiverValid(receiver string) bool {
 	return emailRegex.MatchString(receiver)
 }
 
-func isPayloadValid(payload string) bool {
-	if payload == "" || len(payload) > maxPayloadBytes {
+func isPayloadValid(payload map[string]any) bool {
+	if len(payload) == 0 || len(payload) > maxPayloadBytes {
 		return false
 	}
-	if !json.Valid([]byte(payload)) {
-		return false
-	}
-	switch payload[0] {
-	case '{', '[':
-		return true
-	default:
-		return false
-	}
+	return true
 }
 
 func newID() (string, error) {

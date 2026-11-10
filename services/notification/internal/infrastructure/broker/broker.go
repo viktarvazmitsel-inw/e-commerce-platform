@@ -16,7 +16,6 @@ const (
 	internalExchange      = "internal_exchange"
 	retryExchange         = "retry_exchange"
 	deadLetterQueue       = "dead_letter_queue"
-	originalIDHeader      = "x-original-id"
 	publishConfirmTimeout = 30 * time.Second
 )
 
@@ -377,6 +376,19 @@ func (b *Broker) ResendMessage(
 
 	headers["x-retry-interval"] = retryInterval
 	return b.publish(ctx, retryExchange, metadata.RoutingKey, publishing)
+}
+
+func (b *Broker) SendToDeadLetterQueue(ctx context.Context, body []byte, metadata MessageMetadata) error {
+	publishing := amqp.Publishing{
+		ContentType:  "application/json",
+		Body:         body,
+		DeliveryMode: amqp.Persistent,
+		Headers: amqp.Table{
+			"x-original-id": metadata.OriginalID,
+			"x-retry-count": int32(metadata.RetryCount),
+		},
+	}
+	return b.publish(ctx, "", deadLetterQueue, publishing)
 }
 
 func (b *Broker) publish(ctx context.Context, exchange, routingKey string, msg amqp.Publishing) error {

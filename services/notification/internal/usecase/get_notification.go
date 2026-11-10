@@ -14,14 +14,14 @@ type GetNotificationInput struct {
 }
 
 type GetNotificationOutput struct {
-	ID             string        `json:"id"`
-	Event          string        `json:"event"`
-	Receiver       string        `json:"receiver"`
-	Payload        string        `json:"payload"`
-	Status         domain.Status `json:"status"`
-	ResendAttempts int           `json:"resend_attempts"`
-	CreatedAt      time.Time     `json:"created_at"`
-	UpdatedAt      time.Time     `json:"updated_at"`
+	ID             string         `json:"id"`
+	Event          string         `json:"event"`
+	Receiver       string         `json:"receiver"`
+	Payload        map[string]any `json:"payload"`
+	Status         domain.Status  `json:"status"`
+	ResendAttempts int            `json:"resend_attempts"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 type GetNotificationUseCase struct {

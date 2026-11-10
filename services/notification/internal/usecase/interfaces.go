@@ -14,5 +14,5 @@ type NotificationRepository interface {
 }
 
 type EmailSender interface {
-	Send(ctx context.Context, channel, receiver, payload string) error
+	Send(ctx context.Context, channel, receiver string, payload map[string]any) error
 }

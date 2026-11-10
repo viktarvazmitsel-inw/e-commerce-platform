@@ -7,14 +7,14 @@ import (
 )
 
 type notificationDocument struct {
-	ID             string    `bson:"_id"`
-	Event          string    `bson:"event"`
-	Receiver       string    `bson:"receiver"`
-	Payload        string    `bson:"payload"`
-	Status         string    `bson:"status"`
-	ResendAttempts int       `bson:"resend_attempts"`
-	CreatedAt      time.Time `bson:"created_at"`
-	UpdatedAt      time.Time `bson:"updated_at"`
+	ID             string         `bson:"_id"`
+	Event          string         `bson:"event"`
+	Receiver       string         `bson:"receiver"`
+	Payload        map[string]any `bson:"payload"`
+	Status         string         `bson:"status"`
+	ResendAttempts int            `bson:"resend_attempts"`
+	CreatedAt      time.Time      `bson:"created_at"`
+	UpdatedAt      time.Time      `bson:"updated_at"`
 }
 
 func (d notificationDocument) ToDomain() domain.Notification {
