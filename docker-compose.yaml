@@ -83,6 +83,7 @@ services:
       - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-shop_note_db}
       - SMTP_HOST=note-mailhog
       - SMTP_PORT=1025
+      - SMTP_FROM=shop@localhost
     networks:
       - note
       - frontend

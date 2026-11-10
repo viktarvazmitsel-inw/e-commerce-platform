@@ -1,0 +1,9 @@
+{{define "subject"}}Confirm your email{{end}}
+{{define "body"}}<!DOCTYPE html>
+<html>
+<body>
+<p>Confirm your email with this verification token:</p>
+<p>{{required .verification_token}}</p>
+</body>
+</html>
+{{end}}
