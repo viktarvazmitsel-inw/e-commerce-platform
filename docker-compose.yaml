@@ -84,6 +84,7 @@ services:
       - SMTP_HOST=note-mailhog
       - SMTP_PORT=1025
       - SMTP_FROM=shop@localhost
+      - AUTH_PUBLIC_KEY_URL=http://auth-back:8080/api/auth/public-key
     networks:
       - note
       - frontend
