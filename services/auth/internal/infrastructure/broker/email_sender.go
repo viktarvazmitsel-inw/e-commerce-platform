@@ -21,7 +21,7 @@ type EmailSender struct {
 	logger    usecase.Logger
 }
 
-func NewEmailSender(c *RMQClient, l usecase.Logger) (*EmailSender, error) {
+func NewEmailSender(ctx context.Context, c *RMQClient, l usecase.Logger) (*EmailSender, error) {
 	exchangeCh := "auth_exchange"
 	if err := c.ch.ExchangeDeclare(
 		exchangeCh,
