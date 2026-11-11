@@ -17,7 +17,6 @@ type BrokerRouter struct {
 }
 
 func NewBrokerRouter(
-	services []string,
 	handlerMap map[string]MessageHandler,
 ) *BrokerRouter {
 
