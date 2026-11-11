@@ -63,3 +63,11 @@ func (c *RMQClient) Close() error {
 
 	return nil
 }
+
+func (c *RMQClient) IsClosed() bool {
+	if c.ch == nil || c.conn == nil {
+		return true
+	}
+
+	return c.ch.IsClosed() || c.conn.IsClosed()
+}

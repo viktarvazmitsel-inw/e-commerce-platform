@@ -3,7 +3,7 @@ package broker
 import (
 	"authorization/internal/usecase"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -21,7 +21,7 @@ type EmailSender struct {
 	logger    usecase.Logger
 }
 
-func NewEmailSender(c *RMQClient, l usecase.Logger) (*EmailSender, error) {
+func NewEmailSender(ctx context.Context, c *RMQClient, l usecase.Logger) (*EmailSender, error) {
 	exchangeCh := "email_exchange"
 	if err := c.ch.ExchangeDeclare(
 		exchangeCh,
@@ -44,15 +44,15 @@ func NewEmailSender(c *RMQClient, l usecase.Logger) (*EmailSender, error) {
 	returnChan := make(chan amqp.Return, 10)
 	c.ch.NotifyReturn(returnChan)
 
-	go sender.handleReturnedMessages(returnChan)
+	go sender.handleReturnedMessages(ctx, returnChan)
 
 	return sender, nil
 }
 
-func (s *EmailSender) handleReturnedMessages(returnChan <-chan amqp.Return) {
+func (s *EmailSender) handleReturnedMessages(ctx context.Context, returnChan <-chan amqp.Return) {
 	for ret := range returnChan {
 		s.logger.Warn(
-			context.Background(),
+			ctx,
 			"RabbitMQ message returned: unroutable message",
 			"exchange", ret.Exchange,
 			"routing_key", ret.RoutingKey,
@@ -68,7 +68,7 @@ func (s *EmailSender) SendVerificationEmail(ctx context.Context, email, token st
 		Email: email,
 		Token: token,
 	}
-	return s.publish(ctx, payload, "verification")
+	return s.publish(ctx, payload, "verification.mail")
 }
 
 func (s *EmailSender) SendPasswordResetEmail(ctx context.Context, email, token string) error {
@@ -77,7 +77,7 @@ func (s *EmailSender) SendPasswordResetEmail(ctx context.Context, email, token s
 		Email: email,
 		Token: token,
 	}
-	return s.publish(ctx, payload, "password_reset")
+	return s.publish(ctx, payload, "password_reset.mail")
 }
 
 func (s *EmailSender) publish(ctx context.Context, payload MessagePayload, key string) error {

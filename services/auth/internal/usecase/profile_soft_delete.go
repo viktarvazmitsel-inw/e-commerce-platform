@@ -26,7 +26,7 @@ type SoftDeleteProfileUseCase struct {
 	logger         Logger
 }
 
-func NewSoftDeleteProfileUseCase(
+func NewProfileSoftDeleteUseCase(
 	r UserRepository,
 	s SessionRepository,
 	h PasswordHasher,

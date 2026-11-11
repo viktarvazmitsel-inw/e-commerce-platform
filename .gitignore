@@ -6,3 +6,4 @@
 .cursorrules.local
 /vendor
 /node_modules
+*.pem

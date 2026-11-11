@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type RegisterInput struct {
@@ -55,7 +56,13 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput)
 		return RegisterUserResult{}, fmt.Errorf("%w: %v", ErrPasswordHashFail, err)
 	}
 
-	isTaken, err := uc.repo.IsEmailTaken(ctx, input.Email)
+	trimmedEmail := strings.TrimSpace(input.Email)
+	trimmedEmail = strings.ToLower(trimmedEmail)
+	if trimmedEmail == "" {
+		return RegisterUserResult{}, ErrEmptyEmail
+	}
+
+	isTaken, err := uc.repo.IsEmailTaken(ctx, trimmedEmail)
 	if err != nil {
 		return RegisterUserResult{}, fmt.Errorf("unable to connect database: %w", err)
 	}
@@ -64,7 +71,7 @@ func (uc *RegisterUserUseCase) Execute(ctx context.Context, input RegisterInput)
 		return RegisterUserResult{}, ErrEmailAlreadyTaken
 	}
 
-	userEntity, err := domain.NewUser(input.Email, passwordHash, input.Name, input.Surname, input.Phone)
+	userEntity, err := domain.NewUser(trimmedEmail, passwordHash, input.Name, input.Surname, input.Phone)
 	if err != nil {
 		return RegisterUserResult{}, err
 	}

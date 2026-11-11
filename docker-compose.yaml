@@ -40,7 +40,8 @@ services:
       - frontend
       - broker
     depends_on:
-      - broker
+      broker:
+        condition: service_healthy
     restart: unless-stopped
 
   auth-db:
@@ -85,7 +86,9 @@ services:
       - frontend
       - broker
     depends_on:
-      - broker
+      broker:
+        condition: service_healthy
+    restart: unless-stopped
 
   note-db:
     container_name: shop-note-db

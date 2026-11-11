@@ -30,10 +30,7 @@ func NewRedisClient(ctx context.Context, cfg *RedisConfig) (*redis.Client, error
 		ContextTimeoutEnabled: true,
 	})
 
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	if err := client.Ping(pingCtx).Err(); err != nil {
+	if err := client.Ping(ctx).Err(); err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to connect to redis: %w", err)
 	}

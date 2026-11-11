@@ -143,6 +143,10 @@ func (u *User) SetRole(role Role) error {
 		return ErrUnableToSetAdmin
 	}
 
+	if role == 0 {
+		return ErrInvalidRole
+	}
+
 	if role == u.Role {
 		return ErrUnchangedRole
 	}

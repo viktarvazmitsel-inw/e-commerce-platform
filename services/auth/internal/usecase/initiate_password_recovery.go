@@ -1,11 +1,11 @@
 package usecase
 
 import (
-	"authorization/internal/domain/security"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
+
+	"authorization/internal/domain/security"
 )
 
 type InitiatePasswordRecoveryInput struct {
@@ -39,10 +39,9 @@ func (uc *InitiatePasswordRecoveryUseCase) Execute(ctx context.Context, input In
 	userEntity, err := uc.repo.GetUserByEmail(ctx, trimmedEmail)
 	if err != nil {
 		if errors.Is(err, ErrUserEmailNotFound) {
-			return nil
+			return ErrUserEmailNotFound
 		}
-
-		return fmt.Errorf("unable to load user from database: %w", err)
+		return err
 	}
 
 	if err := userEntity.EnsureActive(); err != nil {
@@ -57,7 +56,7 @@ func (uc *InitiatePasswordRecoveryUseCase) Execute(ctx context.Context, input In
 	hashedResetToken := security.HashToken(resetToken)
 
 	if err := uc.tokenStorage.SavePasswordResetToken(ctx, userEntity.ID, hashedResetToken); err != nil {
-		return fmt.Errorf("failed to save password reset token: %w", err)
+		return ErrVerificationTokenSaveFail
 	}
 
 	if err := uc.mail.SendPasswordResetEmail(ctx, userEntity.Email, resetToken); err != nil {
