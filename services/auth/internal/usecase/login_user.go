@@ -13,6 +13,11 @@ type LoginInput struct {
 	Password string
 }
 
+type LoginOutput struct {
+	UserInfo  UserInfoTokenData
+	TokenPair domain.TokenPair
+}
+
 type LoginUserUseCase struct {
 	repo           UserRepository
 	tokenStorage   SessionRepository
@@ -34,29 +39,29 @@ func NewLoginUserUseCase(
 	}
 }
 
-func (uc *LoginUserUseCase) Execute(ctx context.Context, input LoginInput) (domain.TokenPair, error) {
+func (uc *LoginUserUseCase) Execute(ctx context.Context, input LoginInput) (LoginOutput, error) {
 	trimmedEmail := strings.TrimSpace(input.Email)
 
 	userEntity, err := uc.repo.GetUserByEmail(ctx, trimmedEmail)
 	if err != nil {
-		return domain.TokenPair{}, ErrInvalidCredentials
+		return LoginOutput{}, ErrInvalidCredentials
 	}
 
 	if !uc.passwordHasher.Compare(input.Password, userEntity.PasswordHash) {
-		return domain.TokenPair{}, ErrInvalidCredentials
+		return LoginOutput{}, ErrInvalidCredentials
 	}
 
 	if err := userEntity.EnsureActive(); err != nil {
-		return domain.TokenPair{}, err
+		return LoginOutput{}, err
 	}
 
 	if !userEntity.IsVerified {
-		return domain.TokenPair{}, ErrUserEmailIsNotVerified
+		return LoginOutput{}, ErrUserEmailIsNotVerified
 	}
 
 	tokens, err := uc.tokenGenerator.GenerateTokens(ctx, userEntity.ID, userEntity.Role)
 	if err != nil {
-		return domain.TokenPair{}, ErrTokenPairGenerationFail
+		return LoginOutput{}, ErrTokenPairGenerationFail
 	}
 
 	userInfo := &UserInfoTokenData{
@@ -66,11 +71,14 @@ func (uc *LoginUserUseCase) Execute(ctx context.Context, input LoginInput) (doma
 
 	if err := uc.tokenStorage.SaveTokenPair(ctx, userInfo, tokens); err != nil {
 		if errors.Is(err, ErrTokenPairSaveFail) {
-			return domain.TokenPair{}, ErrTokenPairSaveFail
+			return LoginOutput{}, ErrTokenPairSaveFail
 		}
 
-		return domain.TokenPair{}, fmt.Errorf("failed to save token pair to token storage: %w", err)
+		return LoginOutput{}, fmt.Errorf("failed to save token pair to token storage: %w", err)
 	}
 
-	return tokens, nil
+	return LoginOutput{
+		UserInfo:  *userInfo,
+		TokenPair: tokens,
+	}, nil
 }

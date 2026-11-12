@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"authorization/internal/domain"
@@ -12,7 +13,7 @@ import (
 )
 
 type LoginUserUseCase interface {
-	Execute(ctx context.Context, input usecase.LoginInput) (domain.TokenPair, error)
+	Execute(ctx context.Context, input usecase.LoginInput) (usecase.LoginOutput, error)
 }
 
 type LoginUserHandler struct {
@@ -52,19 +53,21 @@ func (h *LoginUserHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Password: userCredentials.Password,
 	}
 
-	tokenPair, err := h.loginUser.Execute(r.Context(), loginInput)
+	loginOutput, err := h.loginUser.Execute(r.Context(), loginInput)
 	if err != nil {
 		h.handleUseCaseError(w, err)
 		return
 	}
 
-	setRefreshTokenCookie(w, tokenPair)
+	setRefreshTokenCookie(w, loginOutput.TokenPair)
 
 	response.RespondJSON(w, http.StatusOK, &response.Response{
 		Success: true,
 		Data: map[string]string{
 			"message":      "login successful",
-			"access_token": tokenPair.AccessToken,
+			"access_token": loginOutput.TokenPair.AccessToken,
+			"user_id":      loginOutput.UserInfo.UserID,
+			"role":         strconv.Itoa(int(loginOutput.UserInfo.Role)),
 		},
 	})
 }
