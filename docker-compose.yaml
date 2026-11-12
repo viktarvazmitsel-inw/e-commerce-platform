@@ -25,6 +25,12 @@ services:
       - "15672:15672"
     networks:
       - broker
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   auth-back:
     container_name: shop-auth-back
@@ -42,7 +48,12 @@ services:
     depends_on:
       broker:
         condition: service_healthy
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://auth-back:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   auth-db:
     container_name: shop-auth-db

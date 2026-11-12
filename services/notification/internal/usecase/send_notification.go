@@ -25,11 +25,11 @@ type SendNotificationUseCase struct {
 	sender EmailSender
 }
 
-func NewSendNotificationUseCase(r NotificationRepository, s EmailSender) (*SendNotificationUseCase, error) {
+func NewSendNotificationUseCase(r NotificationRepository, s EmailSender) *SendNotificationUseCase {
 	return &SendNotificationUseCase{
 		repo:   r,
 		sender: s,
-	}, nil
+	}
 }
 
 func (uc *SendNotificationUseCase) Execute(

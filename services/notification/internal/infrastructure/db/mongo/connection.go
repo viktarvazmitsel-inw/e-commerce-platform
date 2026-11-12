@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 
 	drivermongo "go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -22,6 +23,7 @@ func (c Config) URI() string {
 		Scheme: "mongodb",
 		User:   url.UserPassword(c.User, c.Password),
 		Host:   fmt.Sprintf("%s:%s", c.Host, c.Port),
+		Path:   "/" + strings.TrimPrefix(c.Database, "/"),
 	}
 	query := u.Query()
 	query.Set("authSource", "admin")

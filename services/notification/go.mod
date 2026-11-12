@@ -3,7 +3,9 @@ module github.com/shop/services/notification
 go 1.27.1
 
 require (
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/joho/godotenv v1.5.1
 	github.com/rabbitmq/amqp091-go v1.14.0
 	go.mongodb.org/mongo-driver/v2 v2.9.1
 )

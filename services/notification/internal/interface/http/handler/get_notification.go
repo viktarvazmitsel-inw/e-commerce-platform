@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/shop/services/notification/internal/interface/http/response"
 	"github.com/shop/services/notification/internal/usecase"
 )
@@ -22,7 +24,7 @@ func NewGetNotificationHandler(uc GetNotificationUseCase) *GetNotificationHandle
 }
 
 func (h *GetNotificationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
 	if id == "" {
 		response.ResponseJSON(w, http.StatusBadRequest, &response.Response{
 			Success: false,
@@ -31,6 +33,7 @@ func (h *GetNotificationHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 				Message: "id is required",
 			},
 		})
+		return
 	}
 
 	output, err := h.uc.Execute(r.Context(), usecase.GetNotificationInput{

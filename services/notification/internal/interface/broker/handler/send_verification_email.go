@@ -18,7 +18,7 @@ type SendVerificationEmailHandler struct {
 	br *broker.Broker
 }
 
-func NewUserCreatedHandler(uc SendNotificationUseCase, br *broker.Broker) *SendVerificationEmailHandler {
+func NewSendVerificationEmailHandler(uc SendNotificationUseCase, br *broker.Broker) *SendVerificationEmailHandler {
 	return &SendVerificationEmailHandler{uc: uc, br: br}
 }
 
