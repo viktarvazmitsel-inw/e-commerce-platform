@@ -30,7 +30,7 @@ func main() {
 
 	err := godotenv.Load()
 	if err != nil {
-		logger.Println("Error loading .env file: %v", err)
+		logger.Printf("Error loading .env file: %v", err)
 	}
 
 	config := config.Load()
@@ -66,6 +66,37 @@ func main() {
 	}
 	logger.Println("RabbitMQ connected")
 
+	var shutdownLogged bool
+	defer func() {
+		if shutdownLogged {
+			logger.Println("Application shut down")
+		}
+	}()
+
+	var mongoClient interface {
+		Disconnect(context.Context) error
+	}
+	defer func() {
+		if mongoClient == nil {
+			return
+		}
+		disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer disconnectCancel()
+		if err := mongoClient.Disconnect(disconnectCtx); err != nil {
+			logger.Printf("Failed to disconnect from MongoDB: %v", err)
+			return
+		}
+		logger.Println("MongoDB connection disconnected")
+	}()
+
+	defer func() {
+		if err := messageBroker.Close(); err != nil {
+			logger.Printf("Failed to close RabbitMQ connection: %v", err)
+			return
+		}
+		logger.Println("RabbitMQ connection closed")
+	}()
+
 	dbConfig := &mongo.Config{
 		Host:     config.MongoHost,
 		Port:     config.MongoPort,
@@ -79,7 +110,7 @@ func main() {
 		logger.Printf("Failed to connect to MongoDB: %v", err)
 		return
 	}
-	defer client.Disconnect(ctx)
+	mongoClient = client
 	logger.Println("MongoDB loaded")
 
 	/*MongoDB load*/
@@ -192,13 +223,39 @@ func main() {
 	messageRouter := broker.NewBrokerRouter(messageHandlerMap)
 	logger.Println("Message router created")
 
+	brokerDone := make(chan struct{})
 	go func() {
+		defer close(brokerDone)
 		logger.Println("Starting message broker")
-		if err := messageBroker.Serve(appCtx, messageRouter, &services); err != nil {
+		if err := messageBroker.Serve(appCtx, messageRouter, &services); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Printf("Failed to start message broker: %v", err)
 			appCancel()
 		}
 	}()
 
 	<-appCtx.Done()
+
+	logger.Println("Gracefully Shutting down...")
+
+	shutDownCtx, shutDownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutDownCancel()
+
+	if err := serverConnection.server.Shutdown(shutDownCtx); err != nil {
+		logger.Printf("Failed to shutdown server gracefully: %v", err)
+		cancelRequests()
+		if err := serverConnection.server.Close(); err != nil {
+			logger.Printf("Failed to close server: %v", err)
+		}
+	} else {
+		logger.Println("Server gracefully shut down")
+	}
+
+	select {
+	case <-brokerDone:
+		logger.Println("Message broker stopped")
+	case <-time.After(5 * time.Second):
+		logger.Println("Message broker did not stop before timeout")
+	}
+
+	shutdownLogged = true
 }

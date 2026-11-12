@@ -115,6 +115,16 @@ func sendSMTP(ctx context.Context, addr, host, from string, to []string, msg []b
 		return err
 	}
 
+	stopWatch := make(chan struct{})
+	defer close(stopWatch)
+	go func() {
+		select {
+		case <-ctx.Done():
+			conn.Close()
+		case <-stopWatch:
+		}
+	}()
+
 	client, err := smtp.NewClient(conn, host)
 	if err != nil {
 		conn.Close()
