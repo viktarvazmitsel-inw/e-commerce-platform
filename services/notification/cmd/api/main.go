@@ -1,98 +1,261 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/joho/godotenv"
+	"github.com/shop/services/notification/internal/config"
+	"github.com/shop/services/notification/internal/infrastructure/broker"
+	"github.com/shop/services/notification/internal/infrastructure/db/mongo"
+	"github.com/shop/services/notification/internal/infrastructure/mail"
+	"github.com/shop/services/notification/internal/infrastructure/token"
+	brokerHandler "github.com/shop/services/notification/internal/interface/broker/handler"
+	httpHandler "github.com/shop/services/notification/internal/interface/http/handler"
+	httpMiddleware "github.com/shop/services/notification/internal/interface/http/middleware"
+	"github.com/shop/services/notification/internal/usecase"
 )
 
 func main() {
-	// 1. Establish RabbitMQ connection at startup
-	// "rabbitmq" matches the hostname set in Docker networking
-	conn, err := amqp.Dial("amqp://guest:guest@broker:5672/")
+	logger := log.New(os.Stdout, "notification-back: ", log.LstdFlags)
+
+	err := godotenv.Load()
 	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+		logger.Printf("Error loading .env file: %v", err)
 	}
-	defer conn.Close()
 
-	// 2. Open a channel
-	ch, err := conn.Channel()
+	config := config.Load()
+	logger.Println("Config loaded")
+
+	ctx := context.Background()
+
+	reqCtx, cancelRequests := context.WithCancel(ctx)
+	defer cancelRequests()
+
+	appCtx, appCancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer appCancel()
+
+	initCtx, initCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer initCancel()
+
+	brokerConfig := &broker.RMQConfig{
+		Host:     config.RMQHost,
+		Port:     config.RMQPort,
+		User:     config.RMQUser,
+		Password: config.RMQPassword,
+	}
+
+	services := broker.BrokerServiceList{
+		List: []string{"auth"},
+	}
+
+	/*RMQ load*/
+	messageBroker, err := broker.NewConnection(initCtx, brokerConfig, &services)
 	if err != nil {
-		log.Fatalf("Failed to open a channel: %v", err)
+		logger.Printf("Failed to connect to RabbitMQ: %v", err)
+		return
 	}
-	defer ch.Close()
+	logger.Println("RabbitMQ connected")
 
-	if err := ch.ExchangeDeclare(
-		"email_exchange",
-		"direct",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	); err != nil {
-		log.Fatalf("Failed to declare exchange: %v", err)
-	}
-
-	// 3. Declare the queue
-	// Must match the exact settings/name used in the sender
-	q, err := ch.QueueDeclare(
-		"email_queue", // queue name
-		true,          // durable
-		false,         // delete when unused
-		false,         // exclusive
-		false,         // no-wait
-		amqp.Table{
-			amqp.QueueTypeArg: amqp.QueueTypeQuorum,
-		},
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare queue: %v", err)
-	}
-
-	if err := ch.QueueBind(
-		q.Name,
-		"verification.mail",
-		"email_exchange",
-		false,
-		nil,
-	); err != nil {
-		log.Fatalf("Failed to bind queue: %v", err)
-	}
-
-	if err := ch.QueueBind(
-		q.Name,
-		"password_reset.mail",
-		"email_exchange",
-		false,
-		nil,
-	); err != nil {
-		log.Fatalf("Failed to bind queue: %v", err)
-	}
-
-	// 4. Register a consumer
-	msgs, err := ch.Consume(
-		q.Name, // queue name
-		"",     // consumer tag (empty string generates a unique tag)
-		true,   // auto-ack (automatically acknowledges message receipt)
-		false,  // exclusive
-		false,  // no-local
-		false,  // no-wait
-		nil,    // args
-	)
-	if err != nil {
-		log.Fatalf("Failed to register a consumer: %v", err)
-	}
-
-	// 5. Block main goroutine and continuously print received messages
-	forever := make(chan bool)
-
-	go func() {
-		for d := range msgs {
-			log.Printf("Received message: %s", d.Body)
+	var shutdownLogged bool
+	defer func() {
+		if shutdownLogged {
+			logger.Println("Application shut down")
 		}
 	}()
 
-	log.Printf(" [*] Waiting for messages in queue '%s'. To exit press CTRL+C", q.Name)
-	<-forever
+	var mongoClient interface {
+		Disconnect(context.Context) error
+	}
+	defer func() {
+		if mongoClient == nil {
+			return
+		}
+		disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer disconnectCancel()
+		if err := mongoClient.Disconnect(disconnectCtx); err != nil {
+			logger.Printf("Failed to disconnect from MongoDB: %v", err)
+			return
+		}
+		logger.Println("MongoDB connection disconnected")
+	}()
+
+	defer func() {
+		if err := messageBroker.Close(); err != nil {
+			logger.Printf("Failed to close RabbitMQ connection: %v", err)
+			return
+		}
+		logger.Println("RabbitMQ connection closed")
+	}()
+
+	dbConfig := &mongo.Config{
+		Host:     config.MongoHost,
+		Port:     config.MongoPort,
+		User:     config.MongoUser,
+		Password: config.MongoPassword,
+		Database: config.MongoDatabase,
+	}
+
+	client, err := mongo.NewClient(initCtx, *dbConfig)
+	if err != nil {
+		logger.Printf("Failed to connect to MongoDB: %v", err)
+		return
+	}
+	mongoClient = client
+	logger.Println("MongoDB loaded")
+
+	/*MongoDB load*/
+	db := client.Database(dbConfig.Database)
+	if db == nil {
+		logger.Printf("Failed to get database: %v", err)
+		return
+	}
+	logger.Println("Database loaded")
+
+	notificationRepository, err := mongo.NewNotificationRepository(db)
+	if err != nil {
+		logger.Printf("Failed to create notification repository: %v", err)
+		return
+	}
+	logger.Println("Notification repository created")
+
+	/*Email sender load*/
+	emailSender, err := mail.NewEmailSender(config.SMTPHost, config.SMTPPort, config.SMTPFrom)
+	if err != nil {
+		logger.Printf("Failed to create email sender: %v", err)
+		return
+	}
+	logger.Println("Email sender created")
+
+	/*JWT load*/
+	publicKey, err := token.FetchPublicKey(initCtx, config.AuthPublicKeyURL, 3, 1*time.Second, nil)
+	if err != nil {
+		logger.Printf("Failed to fetch public key: %v", err)
+		return
+	}
+	logger.Println("Public key fetched")
+
+	keyParser, err := token.NewParser(publicKey)
+	if err != nil {
+		logger.Printf("Failed to create key parser: %v", err)
+		return
+	}
+	logger.Println("Key parser created")
+
+	/*Use cases load*/
+	getNotificationUseCase := usecase.NewGetNotificationUseCase(notificationRepository)
+	logger.Println("Get notification use case created")
+
+	listNotificationsUseCase := usecase.NewListNotificationsUseCase(notificationRepository)
+	logger.Println("List notifications use case created")
+
+	sendNotificationUseCase := usecase.NewSendNotificationUseCase(notificationRepository, emailSender)
+	logger.Println("Send notification use case created")
+
+	/*Handlers load*/
+	getNotificationHandler := httpHandler.NewGetNotificationHandler(getNotificationUseCase)
+	logger.Println("Get notification handler created")
+
+	listNotificationsHandler := httpHandler.NewListNotificationsHandler(listNotificationsUseCase)
+	logger.Println("List notifications handler created")
+
+	sendVerificationEmailHandler := brokerHandler.NewSendVerificationEmailHandler(sendNotificationUseCase, messageBroker)
+	logger.Println("Send verification email handler created")
+
+	/*HTTP router load*/
+	router := chi.NewRouter()
+	accessVerificationMiddleware, err := httpMiddleware.NewAccessVerificationMiddleware(keyParser)
+	if err != nil {
+		logger.Printf("Failed to create access verification middleware: %v", err)
+		return
+	}
+	logger.Println("Access verification middleware created")
+
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
+
+	router.Use(accessVerificationMiddleware.VerifyAccess)
+	router.Get("/api/note/notifications/{id}", getNotificationHandler.ServeHTTP)
+	router.Get("/api/note/notifications", listNotificationsHandler.ServeHTTP)
+
+	type Server struct {
+		router *chi.Mux
+		server *http.Server
+	}
+
+	serverConnection := &Server{
+		router: router,
+		server: &http.Server{
+			Addr:              ":8080",
+			Handler:           router,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      15 * time.Second,
+			IdleTimeout:       60 * time.Second,
+			BaseContext: func(_ net.Listener) context.Context {
+				return reqCtx
+			},
+		},
+	}
+
+	go func() {
+		logger.Println("Starting server on port 8080")
+		if err := serverConnection.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Printf("Failed to start server: %v", err)
+			appCancel()
+		}
+	}()
+
+	messageHandlerMap := map[string]broker.MessageHandler{
+		"auth.user.created":        sendVerificationEmailHandler.Handle,
+		"auth.user.password.reset": sendVerificationEmailHandler.Handle,
+	}
+
+	messageRouter := broker.NewBrokerRouter(messageHandlerMap)
+	logger.Println("Message router created")
+
+	brokerDone := make(chan struct{})
+	go func() {
+		defer close(brokerDone)
+		logger.Println("Starting message broker")
+		if err := messageBroker.Serve(appCtx, messageRouter, &services); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Printf("Failed to start message broker: %v", err)
+			appCancel()
+		}
+	}()
+
+	<-appCtx.Done()
+
+	logger.Println("Gracefully Shutting down...")
+
+	shutDownCtx, shutDownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutDownCancel()
+
+	if err := serverConnection.server.Shutdown(shutDownCtx); err != nil {
+		logger.Printf("Failed to shutdown server gracefully: %v", err)
+		cancelRequests()
+		if err := serverConnection.server.Close(); err != nil {
+			logger.Printf("Failed to close server: %v", err)
+		}
+	} else {
+		logger.Println("Server gracefully shut down")
+	}
+
+	select {
+	case <-brokerDone:
+		logger.Println("Message broker stopped")
+	case <-time.After(5 * time.Second):
+		logger.Println("Message broker did not stop before timeout")
+	}
+
+	shutdownLogged = true
 }

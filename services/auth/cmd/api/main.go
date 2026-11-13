@@ -52,7 +52,7 @@ func main() {
 	reqCtx, cancelRequests := context.WithCancel(ctx)
 	defer cancelRequests()
 
-	initCtx, initCancel := context.WithTimeout(ctx, 5*time.Second)
+	initCtx, initCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer initCancel()
 
 	dbConfig := &postgre.PostgresConfig{
@@ -340,11 +340,11 @@ func main() {
 	router.Post("/api/auth/login", loginUserHandler.ServeHTTP)
 	router.Post("/api/auth/refresh-access", refreshAccessHandler.ServeHTTP)
 	router.Get("/api/auth/public-key", publicKeyHandler.ServeHTTP)
-	router.Get("/api/livez", func(w http.ResponseWriter, r *http.Request) {
+	router.Get("/api/auth/livez", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
-	router.Get("/api/readyz", readyzHealthcheckHandler.ServeHTTP)
+	router.Get("/api/auth/readyz", readyzHealthcheckHandler.ServeHTTP)
 
 	router.Group(func(r chi.Router) {
 		r.Use(accessVerificationMiddleware.VerifyAccess)

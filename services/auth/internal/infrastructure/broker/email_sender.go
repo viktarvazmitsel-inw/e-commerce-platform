@@ -10,9 +10,9 @@ import (
 )
 
 type MessagePayload struct {
-	Type  string `json:"type"`
-	Email string `json:"email"`
-	Token string `json:"token"`
+	Type  string         `json:"type"`
+	Email string         `json:"email"`
+	Token map[string]any `json:"token,omitempty"`
 }
 
 type EmailSender struct {
@@ -22,10 +22,10 @@ type EmailSender struct {
 }
 
 func NewEmailSender(ctx context.Context, c *RMQClient, l usecase.Logger) (*EmailSender, error) {
-	exchangeCh := "email_exchange"
+	exchangeCh := "auth_exchange"
 	if err := c.ch.ExchangeDeclare(
 		exchangeCh,
-		"direct",
+		"topic",
 		true,
 		false,
 		false,
@@ -64,20 +64,24 @@ func (s *EmailSender) handleReturnedMessages(ctx context.Context, returnChan <-c
 
 func (s *EmailSender) SendVerificationEmail(ctx context.Context, email, token string) error {
 	payload := MessagePayload{
-		Type:  "verification",
+		Type:  "auth.user.created",
 		Email: email,
-		Token: token,
+		Token: map[string]any{
+			"verification_token": token,
+		},
 	}
-	return s.publish(ctx, payload, "verification.mail")
+	return s.publish(ctx, payload, "auth.user.created")
 }
 
 func (s *EmailSender) SendPasswordResetEmail(ctx context.Context, email, token string) error {
 	payload := MessagePayload{
-		Type:  "password_reset",
+		Type:  "auth.user.password.reset",
 		Email: email,
-		Token: token,
+		Token: map[string]any{
+			"password_reset_token": token,
+		},
 	}
-	return s.publish(ctx, payload, "password_reset.mail")
+	return s.publish(ctx, payload, "auth.user.password.reset")
 }
 
 func (s *EmailSender) publish(ctx context.Context, payload MessagePayload, key string) error {

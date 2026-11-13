@@ -25,6 +25,12 @@ services:
       - "15672:15672"
     networks:
       - broker
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   auth-back:
     container_name: shop-auth-back
@@ -42,7 +48,12 @@ services:
     depends_on:
       broker:
         condition: service_healthy
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "--tries=1", "http://127.0.0.1:8080/api/auth/livez"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   auth-db:
     container_name: shop-auth-db
@@ -76,11 +87,15 @@ services:
       - "8080"
     environment:
       - PORT=8080
-      - DB_HOST=notification-db
+      - DB_HOST=note-db
       - DB_PORT=27017
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-root}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-default}
       - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE:-shop_note_db}
+      - SMTP_HOST=note-mailhog
+      - SMTP_PORT=1025
+      - SMTP_FROM=shop@localhost
+      - AUTH_PUBLIC_KEY_URL=http://auth-back:8080/api/auth/public-key
     networks:
       - note
       - frontend
@@ -88,8 +103,10 @@ services:
     depends_on:
       broker:
         condition: service_healthy
-    restart: unless-stopped
-
+      note-mailhog:
+        condition: service_started
+      auth-back:
+        condition: service_healthy
   note-db:
     container_name: shop-note-db
     image: mongo:7.0
@@ -101,6 +118,14 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-default}
       MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-shop_note_db}
+    networks:
+      - note
+
+  note-mailhog:
+    container_name: shop-note-mailhog
+    image: mailhog/mailhog
+    ports:
+      - "8025:8025"
     networks:
       - note
 
