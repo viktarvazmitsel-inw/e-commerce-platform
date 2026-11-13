@@ -1,8 +1,9 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 
+const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
 
@@ -19,6 +20,21 @@ const canSubmit = computed(() => {
   const filled = form.email.trim() !== '' && form.password.trim() !== ''
   return filled && !submitting.value
 })
+
+function destinationAfterLogin() {
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+  if (redirect === '') {
+    return { name: 'account' }
+  }
+
+  const resolved = router.resolve(redirect)
+  const token = resolved.query.token
+  if (resolved.name === 'update-email-verify' && typeof token === 'string' && token !== '') {
+    return { name: 'update-email-verify', query: { token } }
+  }
+
+  return { name: 'account' }
+}
 
 function readError(payload) {
   const errors = payload?.errors
@@ -68,7 +84,7 @@ async function onSubmit() {
         role: typeof data.role === 'string' ? data.role : '',
         accessToken: typeof data.access_token === 'string' ? data.access_token : '',
       })
-      await router.push({ name: 'account' })
+      await router.push(destinationAfterLogin())
       return
     }
 
@@ -107,6 +123,8 @@ async function onSubmit() {
       />
 
       <button type="submit" :disabled="!canSubmit">Login</button>
+
+      <RouterLink class="recovery-link" :to="{ name: 'password-recovery' }">Forgot password?</RouterLink>
 
       <div v-if="errorMessage" class="form-errors">
         <p>{{ errorMessage }}</p>
@@ -165,6 +183,12 @@ button {
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.recovery-link {
+  margin-top: 0.25rem;
+  font-size: 0.9rem;
+  color: var(--color-heading);
 }
 
 .form-errors {

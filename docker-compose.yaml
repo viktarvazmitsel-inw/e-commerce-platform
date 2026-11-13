@@ -49,7 +49,7 @@ services:
       broker:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://auth-back:8080/api/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/api/auth/readyz"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -101,8 +101,12 @@ services:
       - frontend
       - broker
     depends_on:
-      - broker
-      - note-mailhog
+      broker:
+        condition: service_healthy
+      note-mailhog:
+        condition: service_started
+      auth-back:
+        condition: service_healthy
   note-db:
     container_name: shop-note-db
     image: mongo:7.0
