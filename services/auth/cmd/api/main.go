@@ -52,7 +52,7 @@ func main() {
 	reqCtx, cancelRequests := context.WithCancel(ctx)
 	defer cancelRequests()
 
-	initCtx, initCancel := context.WithTimeout(ctx, 5*time.Second)
+	initCtx, initCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer initCancel()
 
 	dbConfig := &postgre.PostgresConfig{

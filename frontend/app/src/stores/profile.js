@@ -211,6 +211,28 @@ export const useProfileStore = defineStore('profile', () => {
     return { ok: false, sessionCleared: false, payload }
   }
 
+  async function switchUserRole(userId, newRole) {
+    const { response, sessionCleared } = await authorizedFetch(
+      `/api/auth/switch-user-role/${encodeURIComponent(userId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_role: newRole }),
+      },
+    )
+    const payload = await readPayload(response)
+
+    if (sessionCleared) {
+      return { ok: false, sessionCleared: true, payload }
+    }
+
+    if (response.ok && payload?.success === true) {
+      return { ok: true, sessionCleared: false, payload }
+    }
+
+    return { ok: false, sessionCleared: false, payload }
+  }
+
   async function confirmEmailUpdate({ token }) {
     const { response, sessionCleared } = await authorizedFetch('/api/auth/confirm-email-update', {
       method: 'POST',
@@ -238,6 +260,7 @@ export const useProfileStore = defineStore('profile', () => {
     initiateEmailUpdate,
     updatePassword,
     softDelete,
+    switchUserRole,
     confirmEmailUpdate,
   }
 })
