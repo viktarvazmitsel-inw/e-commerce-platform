@@ -77,6 +77,35 @@ const router = createRouter({
       component: () => import('../views/UpdateEmailVerifyView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/users',
+      name: 'users',
+      component: () => import('../views/UsersView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/users/:userId',
+      name: 'user',
+      component: () => import('../views/UserView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/notifications',
+      name: 'notifications',
+      component: () => import('../views/NotificationsView.vue'),
+      meta: { requiresAuth: true, roles: 6 },
+    },
+    {
+      path: '/notifications/:notificationId',
+      name: 'notification',
+      component: () => import('../views/NotificationView.vue'),
+      meta: { requiresAuth: true, roles: 6 },
+    },
+    {
+      path: '/404',
+      name: 'not-found',
+      component: () => import('../views/NotFoundView.vue'),
+    },
   ],
 })
 
@@ -90,6 +119,10 @@ router.beforeEach((to) => {
     }
 
     return { name: 'home' }
+  }
+
+  if (typeof to.meta.roles === 'number' && (Number(session.role) & to.meta.roles) === 0) {
+    return { name: 'not-found' }
   }
 
   if (to.meta.guestOnly && isAuthenticated) {

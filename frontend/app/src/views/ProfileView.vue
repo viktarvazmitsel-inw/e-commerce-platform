@@ -4,6 +4,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useSessionStore } from '@/stores/session'
 import { useProfileStore } from '@/stores/profile'
+import DeleteProfileModal from '@/components/DeleteProfileModal.vue'
 
 const router = useRouter()
 const session = useSessionStore()
@@ -36,6 +37,7 @@ const inputs = {
 const loading = ref(true)
 const submitting = ref(false)
 const loaded = ref(false)
+const deleteOpen = ref(false)
 const errorMessage = ref('')
 const errorDetails = ref([])
 const successMessage = ref('')
@@ -157,6 +159,12 @@ async function onSubmit() {
   }
 }
 
+async function onProfileDeleted() {
+  deleteOpen.value = false
+  session.clearSession()
+  await router.push({ name: 'home' })
+}
+
 loadProfile()
 </script>
 
@@ -221,6 +229,17 @@ loadProfile()
         <p v-for="detail in errorDetails" :key="detail">{{ detail }}</p>
       </div>
     </form>
+
+    <button v-if="loaded" type="button" class="delete-profile" @click="deleteOpen = true">
+      Delete profile
+    </button>
+
+    <DeleteProfileModal
+      :open="deleteOpen"
+      :target-id="userId"
+      @close="deleteOpen = false"
+      @success="onProfileDeleted"
+    />
   </main>
 </template>
 
@@ -228,6 +247,7 @@ loadProfile()
 .profile {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2rem;
@@ -239,6 +259,13 @@ loadProfile()
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.delete-profile {
+  width: 100%;
+  max-width: 24rem;
+  margin-top: 1.5rem;
+  background: #c0392b;
 }
 
 h1 {

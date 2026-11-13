@@ -80,6 +80,24 @@ export const useProfileStore = defineStore('profile', () => {
     return { ok: false, sessionCleared: false, payload }
   }
 
+  async function fetchById(userId) {
+    const { response, sessionCleared } = await authorizedFetch(
+      `/api/auth/profile/${encodeURIComponent(userId)}`,
+      { method: 'GET' },
+    )
+    const payload = await readPayload(response)
+
+    if (sessionCleared) {
+      return { ok: false, sessionCleared: true, payload }
+    }
+
+    if (response.ok && payload?.success === true) {
+      return { ok: true, sessionCleared: false, payload, profile: profileFromPayload(payload.data) }
+    }
+
+    return { ok: false, sessionCleared: false, payload }
+  }
+
   async function update({ name, surname, phone }) {
     const next = {
       name: name.trim(),
@@ -155,6 +173,44 @@ export const useProfileStore = defineStore('profile', () => {
     return { ok: false, sessionCleared: false, payload }
   }
 
+  async function softDelete({ targetId, password }, retried = false) {
+    const response = await fetch('/api/auth/profile-soft-delete', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+      body: JSON.stringify({
+        target_id: targetId,
+        password,
+      }),
+    })
+    const payload = await readPayload(response)
+
+    if (response.status === 401 && payload?.errors?.code === 'INVALID_CREDENTIALS') {
+      return { ok: false, sessionCleared: false, payload }
+    }
+
+    if (response.status === 401 && !retried) {
+      await session.restoreAccess()
+      if (session.userId === '') {
+        return { ok: false, sessionCleared: true, payload }
+      }
+      return softDelete({ targetId, password }, true)
+    }
+
+    if (session.userId === '') {
+      return { ok: false, sessionCleared: true, payload }
+    }
+
+    if (response.ok && payload?.success === true) {
+      return { ok: true, sessionCleared: false, payload }
+    }
+
+    return { ok: false, sessionCleared: false, payload }
+  }
+
   async function confirmEmailUpdate({ token }) {
     const { response, sessionCleared } = await authorizedFetch('/api/auth/confirm-email-update', {
       method: 'POST',
@@ -174,5 +230,14 @@ export const useProfileStore = defineStore('profile', () => {
     return { ok: false, sessionCleared: false, payload }
   }
 
-  return { profile, load, update, initiateEmailUpdate, updatePassword, confirmEmailUpdate }
+  return {
+    profile,
+    load,
+    fetchById,
+    update,
+    initiateEmailUpdate,
+    updatePassword,
+    softDelete,
+    confirmEmailUpdate,
+  }
 })

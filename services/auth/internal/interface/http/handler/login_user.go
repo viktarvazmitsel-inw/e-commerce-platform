@@ -87,7 +87,7 @@ func isCredentialsFormatOk(uCreds *UserCredentials) bool {
 
 func (h *LoginUserHandler) handleUseCaseError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, usecase.ErrInvalidCredentials):
+	case errors.Is(err, usecase.ErrInvalidCredentials), errors.Is(err, domain.ErrUserDeactivated):
 		response.RespondJSON(w, http.StatusUnauthorized, &response.Response{
 			Success: false,
 			Errors: &response.APIError{
@@ -101,14 +101,6 @@ func (h *LoginUserHandler) handleUseCaseError(w http.ResponseWriter, err error) 
 			Errors: &response.APIError{
 				Code:    "UNVERIFIED_EMAIL",
 				Message: "user email is not verified",
-			},
-		})
-	case errors.Is(err, domain.ErrUserDeactivated):
-		response.RespondJSON(w, http.StatusForbidden, &response.Response{
-			Success: false,
-			Errors: &response.APIError{
-				Code:    "USER_DEACTIVATED",
-				Message: "profile is deactivated",
 			},
 		})
 	default:

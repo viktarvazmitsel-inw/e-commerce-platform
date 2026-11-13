@@ -7,13 +7,19 @@ import { useSessionStore } from '@/stores/session'
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
-const { userId, accessToken } = storeToRefs(session)
+const { userId, role, accessToken } = storeToRefs(session)
 
 const isAuthenticated = computed(() => userId.value !== '')
+const isAdmin = computed(() => (Number(role.value) & 4) === 4)
+const canReadNotifications = computed(() => (Number(role.value) & 6) !== 0)
 
 const navLinks = computed(() => {
   const links = isAuthenticated.value
-    ? [{ name: 'profile', label: 'Profile' }]
+    ? [
+        ...(isAdmin.value ? [{ name: 'users', label: 'Users' }] : []),
+        ...(canReadNotifications.value ? [{ name: 'notifications', label: 'Notifications' }] : []),
+        { name: 'profile', label: 'Profile' },
+      ]
     : [
         { name: 'registration', label: 'Register' },
         { name: 'login', label: 'Login' },
